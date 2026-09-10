@@ -1,0 +1,8 @@
+{
+  "id": "cpp_003",
+  "title": "Generic LRU cache",
+  "language": "cpp",
+  "standard": "c++20",
+  "difficulty": "medium",
+  "version": 1
+}
