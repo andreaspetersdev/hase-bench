@@ -472,7 +472,9 @@ Difficulty:
 
 ## CPP-010 — Graph Dependency Resolver
 
-Implement dependency resolution for a set of named modules/packages.
+Implemented as version 1 in `tasks/cpp/cpp_010_dependency_resolver`. It uses a
+fixed public result API with deterministic lexical ordering, diagnostic
+precedence, and a canonical directed cycle path.
 
 Required behavior:
 

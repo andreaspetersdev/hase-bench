@@ -24,7 +24,7 @@ version changes.
 | ID | Title | Difficulty | Intended benchmark scope |
 | --- | --- | --- | --- |
 | CPP-009 | JSON-like configuration merge | Medium | Implemented, version 3. Precise recursive `variant` merge semantics for objects, arrays (including empty and non-empty whole-array replacement), scalar/type replacement without numeric coercion, absent versus null, deeply nested values, and independent result/input ownership. |
-| CPP-010 | Graph dependency resolver | Medium-hard | Deterministic lexically tie-broken topological resolution, duplicate/missing diagnostics, and closed useful cycle paths across deep and disconnected graphs. |
+| CPP-010 | Graph dependency resolver | Medium-hard | Implemented, version 1. Deterministic lexically tie-broken topological resolution; precedence-defined duplicate and missing diagnostics; and canonical closed directed cycle paths across deep, diamond, and disconnected graphs. |
 | CPP-011 | Matrix / least squares | Very hard | QR-based solver with dimension/rank/non-finite policy, residual-quality validation, rectangular/noisy/badly-scaled systems, and tests that expose fragile normal equations. |
 | CPP-012 | Geometry / quaternion | Hard | Rotation operations with explicit zero normalization, sign ambiguity, invalid-matrix policy, and invariant-based composition/orthogonality/round-trip validation. |
 | CPP-013 | Log parser and statistics | Medium-hard | Bounded-memory aggregation, documented percentile window, malformed-record accounting, timestamp boundary policy, large streams, and numeric-stability checks. |
