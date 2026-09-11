@@ -6,6 +6,7 @@ template <class T, std::size_t Capacity> class SpscRingBuffer {
   static_assert(Capacity > 0);
 public:
   [[nodiscard]] static constexpr std::size_t capacity() noexcept { return Capacity; }
+  SpscRingBuffer() = default;
   [[nodiscard]] bool try_push(T) { return false; }
   [[nodiscard]] bool try_pop(T&) { return false; }
   [[nodiscard]] bool empty() const noexcept { return true; }

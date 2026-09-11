@@ -1,5 +1,5 @@
 # CPP-003: Generic LRU cache
 
-Complete the C++20 `hase::LruCache<Key, Value>` template without changing its public API. `get` returns a pointer to the stored value (or `nullptr`) and counts as access. `put` inserts or replaces a value. The most recently accessed or inserted item is most-recent; when full, `put` evicts the least-recent item. A zero-capacity cache stores nothing.
+Complete the C++20 `hase::LruCache<Key, Value>` template without changing its public API. The cache is non-copyable and non-movable. `get` returns a pointer to the stored value (or `nullptr`) and counts as access. `put` inserts or replaces a value. The most recently accessed or inserted item is most-recent; when full, `put` evicts the least-recent item. A zero-capacity cache stores nothing.
 
-Expected operations should be approximately O(1). Values must support move-only types. Do not add external dependencies. Build and run the visible CTest suite.
+Expected operations should be approximately O(1). `Key` must be hashable, equality-comparable, and constructible from the supplied key argument. `put` must correctly accept both lvalue and rvalue keys, including replacement through an rvalue key. Values must support move-only types, including replacement. The returned `Value*` is valid only until the next non-const operation on that cache, or destruction of the cache; no stronger pointer or internal-iterator validity guarantee is part of this task. Do not add external dependencies. Build and run the visible CTest suite.

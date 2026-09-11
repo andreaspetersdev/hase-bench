@@ -28,11 +28,13 @@ Use `--verbose` to print captured CMake and CTest diagnostics. Preparation copie
 
 Currently available tasks are CPP-001 (expression evaluator), CPP-003 (generic LRU cache), and CPP-005 (SPSC ring buffer). See [progress.md](progress.md) for the current stage.
 
-Promt example:
+Prompt example:
 ```markdown
 Read TASK.md and solve the task.
 
-You may inspect the repository, edit the implementation, configure/build the project, and run the visible tests.
+The current directory is the entire project scope for this task. Do not inspect, list, read, or modify parent or ancestor directories, even if they are visible through Git. Do not change files outside the current workspace.
+
+You may inspect this workspace, edit the implementation, configure/build the project, and run the visible tests.
 
 Continue working until you believe the task is complete.
 

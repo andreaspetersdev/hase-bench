@@ -2,7 +2,12 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <type_traits>
 int main() {
+ static_assert(!std::is_copy_constructible_v<hase::LruCache<int, int>>);
+ static_assert(!std::is_copy_assignable_v<hase::LruCache<int, int>>);
+ static_assert(!std::is_move_constructible_v<hase::LruCache<int, int>>);
+ static_assert(!std::is_move_assignable_v<hase::LruCache<int, int>>);
  hase::LruCache<int, std::string> one(1);
  one.put(1, "first"); one.put(1, "replacement");
  if (one.size() != 1 || !one.get(1) || *one.get(1) != "replacement") return 1;
@@ -16,4 +21,12 @@ int main() {
  hase::LruCache<int, std::unique_ptr<int>> move_only(1);
  move_only.put(1, std::make_unique<int>(5));
  if (!move_only.get(1) || **move_only.get(1) != 5) return 5;
+ move_only.put(1, std::make_unique<int>(6));
+ if (!move_only.get(1) || **move_only.get(1) != 6) return 6;
+ hase::LruCache<std::string, int> strings(2);
+ std::string first = "first";
+ strings.put(first, 1);
+ strings.put(std::string{"second"}, 2);
+ strings.put(std::string{"first"}, 3);
+ if (!strings.get("first") || *strings.get("first") != 3 || !strings.get("second")) return 7;
 }
