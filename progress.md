@@ -17,8 +17,12 @@
 - Autonomous telemetry: OpenCode JSON event streams now provide maximum observed context tokens, generated tokens, estimated model time (step time less recorded tool time), and generated-token rate. Console, Markdown reports, and run metadata also record agent elapsed time and full benchmark elapsed time. The default autonomous timeout is now 1,800 seconds (30 minutes).
 - Autonomous OpenCode runs accept an optional `--variant` and pass it through as OpenCode's model reasoning-effort `--variant` (for example, `medium` or `xhigh`), while retaining it in metadata and Markdown reports.
 - Stage 3 started: CPP-002 CSV parser added as version 2. It is a bounded C++20 parsing/state-machine task with separate visible and hidden tests for quoted fields, escaped quotes, empty fields, LF/CRLF records, embedded newlines, malformed quoting, and a final record without a newline.
+- CPP-004 Thread Pool added as version 2. It is a hard C++20 concurrency/template task with visible and independent hidden tests for futures, exceptions, draining shutdown, fixed workers, concurrent submissions, move-only callables/arguments, and lvalue callables/arguments.
 
 ## Benchmark specification review (2026-09-11)
+
+- CPP-004 gap incorporated after autonomous model-run review: the original version 1 wording said that `submit(f, args...)` accepted a callable, but did not explicitly require ordinary named (lvalue) callables and arguments. This is expected behavior for the public forwarding API, so version 2 now states it explicitly and an independent hidden regression compiles and invokes a named callable with a named argument. The reference implementation passes version 2.
+- CPP-004 autonomous review: `lmstudio/qwen/qwen3.6-35b-a3b` completed its agent run and passed visible tests, but hidden validation could not compile its final wrapper with a move-only argument because it invoked stored arguments as lvalues. Its version-1 and version-2 result is `COMPILATION_FAILURE`. `llama-hase/qwen3.8-27b` passed all version-1 validation using a type-erased promise-based design, but its decayed task constructor cannot accept a named callable; its preserved version-1 workspace correctly fails the new version-2 lvalue regression as `COMPILATION_FAILURE`. A fresh 27B version-2 run then revised its wrapper to own and rvalue-apply a tuple of arguments, and passed both authoritative suites (`SUCCESS`; 709.65 s estimated model time, 784.56 s full time). All generated workspaces are retained. Concurrent overlapping calls to `shutdown()` are explicitly outside CPP-004's scope; sequential repeated shutdown is required and tested.
 
 - CPP-002 gap incorporated after autonomous model-run review: the original contract did not state the result for a bare `\r` inside a quoted field, despite explicitly rejecting it outside quotes. The contract now makes it quoted field data, preserved as `\r`; an independent hidden regression covers it. CPP-002 version increased from 1 to 2.
 - CPP-002 autonomous review: `lmstudio/qwen/qwen3.6-35b-a3b` used its full 900-second budget while iterating on a substantial parser, but its preserved result failed visible quoted-field handling and hidden CRLF/final-record coverage. `llama-hase/qwen3.8-27b` passed version 1 visible and hidden validation; it then exposed the quoted-bare-`\r` ambiguity and correctly fails only the version 2 hidden regression. Both generated workspaces are retained under `work/`.
@@ -53,7 +57,7 @@
 
 ## Active
 
-- Stage 3 — Expand the C++ suite incrementally. CPP-002 is complete; stop here before starting another task.
+- Stage 3 — Expand the C++ suite incrementally. CPP-004 is complete; stop here before starting another task.
 
 ## Pending
 
