@@ -18,8 +18,23 @@ Enter the printed workspace, launch OpenCode yourself, and ask it to read `TASK.
 
 ```powershell
 python -m hasebench validate <workspace>
+python -m hasebench validate --all
+python -m hasebench validate --all --task cpp_001
 ```
 
 Use `--verbose` to print captured CMake and CTest diagnostics. Preparation copies only `starter/` and `TASK.md`; hidden validators remain under canonical `tasks/` and are never placed in the workspace.
 
+`validate --all` scans only direct children of `work/` containing Hase Bench workspace metadata. It continues past malformed workspaces and prints a concise per-run and aggregate result summary.
+
 Currently available tasks are CPP-001 (expression evaluator), CPP-003 (generic LRU cache), and CPP-005 (SPSC ring buffer). See [progress.md](progress.md) for the current stage.
+
+Promt example:
+```markdown
+Read TASK.md and solve the task.
+
+You may inspect the repository, edit the implementation, configure/build the project, and run the visible tests.
+
+Continue working until you believe the task is complete.
+
+Do not ask me for implementation guidance unless you are genuinely blocked.
+```

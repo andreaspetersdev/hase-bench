@@ -5,6 +5,7 @@
 - Repository layout, task discovery, workspace preparation, and framework unit tests.
 - CPP-001 Expression Evaluator, CPP-003 Generic LRU Cache, and CPP-005 SPSC Ring Buffer canonical tasks, each with visible and separate hidden tests.
 - Stage 1 — Framework skeleton verified end-to-end with real MSVC for CPP-001, CPP-003, and CPP-005.
+- Manual workflow: `validate --all` discovers only metadata-marked direct children of `work/`, supports `--task`, continues after corrupt workspaces, and prints per-run plus aggregate outcomes.
 
 ## Stage 1 verification (2026-09-10)
 
