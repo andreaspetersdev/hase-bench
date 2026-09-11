@@ -414,7 +414,7 @@ Difficulty:
 
 ## CPP-009 — JSON-like Configuration Merge
 
-Do not require a full JSON parser.
+Implemented as version 3. Do not require a full JSON parser.
 
 Provide an existing lightweight configuration value type such as:
 
@@ -444,6 +444,17 @@ null
 ```
 
 Hidden tests should deeply nest structures, distinguish an absent key from a present null, and verify that inputs are not aliased or accidentally mutated by the result.
+
+The returned value must be an independent recursive copy: later mutation of an
+array or object through the result must not alter either input, and later input
+mutation must not alter the result. Arrays replace as a whole; they are not
+concatenated or recursively merged. Null is an ordinary replacement value, not
+a deletion marker. Integer and double are separate `variant` alternatives;
+replacement does not perform numeric coercion.
+
+Hidden validation also confirms that false, zero, an empty string, and an empty
+array replace an existing value, and that a non-empty array replaces another
+array wholesale rather than being merged element-by-element.
 
 Category:
 

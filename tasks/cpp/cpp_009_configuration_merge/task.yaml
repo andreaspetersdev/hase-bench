@@ -1,0 +1,8 @@
+{
+  "id": "cpp_009",
+  "title": "JSON-like configuration merge",
+  "language": "cpp",
+  "standard": "c++20",
+  "difficulty": "medium",
+  "version": 3
+}

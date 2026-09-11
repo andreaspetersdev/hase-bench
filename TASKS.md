@@ -23,7 +23,7 @@ version changes.
 
 | ID | Title | Difficulty | Intended benchmark scope |
 | --- | --- | --- | --- |
-| CPP-009 | JSON-like configuration merge | Medium | Precise recursive `variant` merge semantics for objects, arrays, scalar/type replacement, absent versus null, deeply nested values, and non-aliasing inputs. |
+| CPP-009 | JSON-like configuration merge | Medium | Implemented, version 3. Precise recursive `variant` merge semantics for objects, arrays (including empty and non-empty whole-array replacement), scalar/type replacement without numeric coercion, absent versus null, deeply nested values, and independent result/input ownership. |
 | CPP-010 | Graph dependency resolver | Medium-hard | Deterministic lexically tie-broken topological resolution, duplicate/missing diagnostics, and closed useful cycle paths across deep and disconnected graphs. |
 | CPP-011 | Matrix / least squares | Very hard | QR-based solver with dimension/rank/non-finite policy, residual-quality validation, rectangular/noisy/badly-scaled systems, and tests that expose fragile normal equations. |
 | CPP-012 | Geometry / quaternion | Hard | Rotation operations with explicit zero normalization, sign ambiguity, invalid-matrix policy, and invariant-based composition/orthogonality/round-trip validation. |
