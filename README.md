@@ -1,6 +1,6 @@
 # Hase Bench
 
-The current milestone supports manual C++ benchmark runs only. It does not invoke OpenCode itself.
+The current milestone supports manual and autonomous C++ benchmark runs through OpenCode.
 
 Run the commands from a Visual Studio 2026 x64 Developer PowerShell (or an
 equivalently initialized MSVC environment). `cl.exe` and CMake must be on
@@ -26,6 +26,25 @@ python -m hasebench validate --all --task cpp_001
 Use `--verbose` to print captured CMake and CTest diagnostics. Preparation copies only `starter/` and `TASK.md`; hidden validators remain under canonical `tasks/` and are never placed in the workspace.
 
 `validate --all` scans only direct children of `work/` containing Hase Bench workspace metadata. It continues past malformed workspaces and prints a concise per-run and aggregate result summary, including task complexity (`E`, `M`, `H`, or `VH`).
+
+## Autonomous OpenCode runs
+
+Run one task in a fresh autonomous workspace:
+
+```powershell
+python -m hasebench run cpp_001 --agent opencode --model hase/qwen27b-q4 --label A3B
+```
+
+Run every available task, or limit an all-task run to a task ID:
+
+```powershell
+python -m hasebench run --all --agent opencode --model hase/qwen27b-q4 --label A3B
+python -m hasebench run --all --task cpp_003 --agent opencode --model hase/qwen27b-q4
+```
+
+`--model` is passed unchanged to OpenCode's `--model` option. Configure the provider, endpoint, credentials, and any model alias in OpenCode; the benchmark does not hard-code hase connection settings. Use `--model-name` and `--backend` when the selector alone is not sufficiently descriptive for later comparison. The default agent timeout is 900 seconds; override it with `--timeout` for a particular run.
+
+Each autonomous run creates a new `_aut_opencode` workspace, runs OpenCode with non-interactive JSON output and permission auto-approval inside that workspace, then validates it with the same visible and hidden CMake validators as manual runs. `TEMP` and `TMP` are redirected into the workspace so ordinary agent-created temporary files are preserved there too. The workspace is always preserved. It contains `hasebench-agent.log` and `hasebench-run.json`, recording the selected configuration, model/backend labels, agent exit status/timing, validation commands/results, and final classification. Use `--verbose` to print captured agent and validation diagnostics.
 
 Currently available tasks are CPP-001 (expression evaluator), CPP-003 (generic LRU cache), and CPP-005 (SPSC ring buffer). See [progress.md](progress.md) for the current stage.
 

@@ -7,7 +7,15 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-from hasebench.cli import _compact_complexity, _print_result, _validate_all
+from hasebench.agents import (
+    AgentRunRequest,
+    AgentRunResult,
+    OpenCodeAgentRunner,
+    _agent_environment,
+    _default_opencode_executable,
+)
+from hasebench.cli import _compact_complexity, _print_result, _run_all, _validate_all
+from hasebench.runs import AGENT_LOG, RUN_METADATA, run_autonomous
 from hasebench.tasks import discover_tasks, find_task
 from hasebench.validation import CommandResult, ValidationResult, _deduplicate_environment
 from hasebench.workspaces import (
@@ -46,6 +54,12 @@ class FrameworkTests(unittest.TestCase):
             self.assertRegex(workspace.name, r"^\d{8}-\d{6}_cpp_001_man_A3B$")
             with self.assertRaises(ValueError):
                 prepare_workspace(find_task("cpp_001"), Path(temporary), "A3B/model")
+
+    def test_autonomous_workspace_has_a_distinct_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = prepare_workspace(find_task("cpp_001"), Path(temporary), "A3B", mode="aut_opencode")
+            self.assertRegex(workspace.name, r"^\d{8}-\d{6}_cpp_001_aut_opencode_A3B$")
+            self.assertIn('"mode": "aut_opencode"', (workspace / WORKSPACE_METADATA).read_text(encoding="utf-8"))
 
     def test_child_environment_deduplicates_case_insensitive_names(self) -> None:
         environment = _deduplicate_environment({"PATH": "first", "Path": "second", "HOME": "home"})
@@ -90,6 +104,65 @@ class FrameworkTests(unittest.TestCase):
         self.assertEqual(_compact_complexity("medium"), "M")
         self.assertEqual(_compact_complexity("hard"), "H")
         self.assertEqual(_compact_complexity("very hard"), "VH")
+
+    def test_opencode_runner_uses_non_interactive_workspace_command(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            request = AgentRunRequest(workspace, "solve it", "hase/qwen", 30, workspace / "agent.log")
+            completed = type("Completed", (), {"returncode": 0, "stdout": '{"type":"text"}\n'})()
+            with patch("hasebench.agents.subprocess.run", return_value=completed) as run:
+                result = OpenCodeAgentRunner("opencode-test").run(request)
+            self.assertEqual(result.outcome, "SUCCESS")
+            self.assertEqual(run.call_args.args[0], [
+                "opencode-test", "run", "--dir", str(workspace), "--model", "hase/qwen",
+                "--format", "json", "--auto", "solve it",
+            ])
+            self.assertEqual(run.call_args.kwargs["env"]["TEMP"], str(workspace / ".hasebench-tmp"))
+            self.assertEqual(request.log_path.read_text(encoding="utf-8"), '{"type":"text"}\n')
+
+    def test_agent_environment_contains_workspace_temp_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            environment = _agent_environment(workspace)
+            self.assertEqual(environment["TMP"], str(workspace / ".hasebench-tmp"))
+            self.assertTrue((workspace / ".hasebench-tmp").is_dir())
+
+    @unittest.skipUnless(__import__("os").name == "nt", "Windows command wrapper selection")
+    def test_opencode_default_uses_windows_command_wrapper(self) -> None:
+        with patch("hasebench.agents.shutil.which", return_value="C:/npm/opencode.cmd"):
+            self.assertEqual(_default_opencode_executable(), "C:/npm/opencode.cmd")
+
+    def test_autonomous_run_writes_metadata_and_uses_the_shared_validator(self) -> None:
+        command = CommandResult(0, "", 0.0)
+        validation = ValidationResult("cpp_001", command, command, command)
+        agent = AgentRunResult("2026-01-01T00:00:00Z", "2026-01-01T00:00:01Z", 1.0, 0, "agent output", "SUCCESS")
+
+        class FakeRunner:
+            def run(self, request: AgentRunRequest) -> AgentRunResult:
+                request.log_path.write_text(agent.output, encoding="utf-8")
+                return agent
+
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary) / "autonomous-workspace"
+            workspace.mkdir()
+            with patch("hasebench.runs.prepare_workspace", return_value=workspace), \
+                 patch("hasebench.runs.validate_cpp", return_value=validation):
+                result = run_autonomous(
+                    find_task("cpp_001"), FakeRunner(), "hase/qwen", "Qwen 27B", "llama.cpp", 900, "A3B"
+                )
+            metadata = (workspace / RUN_METADATA).read_text(encoding="utf-8")
+            self.assertEqual(result.outcome, "SUCCESS")
+            self.assertEqual((workspace / AGENT_LOG).read_text(encoding="utf-8"), "agent output")
+            self.assertIn('"mode": "autonomous"', metadata)
+            self.assertIn('"configuration": "hase/qwen"', metadata)
+            self.assertIn('"backend": "llama.cpp"', metadata)
+            self.assertIn('"outcome": "SUCCESS"', metadata)
+
+    def test_run_all_uses_each_discovered_task_and_continues_after_failure(self) -> None:
+        arguments = type("Arguments", (), {"task_filter": None})()
+        with patch("hasebench.cli._run_one", side_effect=[0, 1, 0]) as run_one, redirect_stdout(StringIO()):
+            self.assertEqual(_run_all(None, arguments), 1)
+        self.assertEqual([call.args[0].identifier for call in run_one.call_args_list], ["cpp_001", "cpp_003", "cpp_005"])
 
 
 if __name__ == "__main__":

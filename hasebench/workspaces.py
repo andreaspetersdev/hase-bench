@@ -27,11 +27,18 @@ class WorkspaceCandidate:
     metadata_error: str | None = None
 
 
-def prepare_workspace(task: Task, work_root: Path | None = None, label: str | None = None) -> Path:
+def prepare_workspace(
+    task: Task,
+    work_root: Path | None = None,
+    label: str | None = None,
+    mode: str = "man",
+) -> Path:
     base = work_root or repository_root() / "work"
     base.mkdir(parents=True, exist_ok=True)
     normalized_label = _normalize_label(label)
-    stem = f"{datetime.now().strftime('%Y%m%d-%H%M%S')}_{task.identifier}_man"
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", mode):
+        raise ValueError("workspace mode must contain only letters, digits, '.', '_', or '-' and begin with a letter or digit")
+    stem = f"{datetime.now().strftime('%Y%m%d-%H%M%S')}_{task.identifier}_{mode}"
     if normalized_label:
         stem += f"_{normalized_label}"
     workspace = base / stem
@@ -47,6 +54,7 @@ def prepare_workspace(task: Task, work_root: Path | None = None, label: str | No
                 "workspace_id": workspace.name,
                 "task_id": task.identifier,
                 "task_version": task.version,
+                "mode": mode,
             },
             indent=2,
         ) + "\n",

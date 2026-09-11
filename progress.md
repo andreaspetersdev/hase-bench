@@ -9,6 +9,9 @@
 - Manual preparation supports `--label` for an optional safe model/run suffix; new workspace names use the concise `_man` marker.
 - Validation reports show each task's declared complexity for both individual and batch runs, using compact labels (`E`, `M`, `H`, `VH`).
 - Benchmark-specification review of CPP-001, CPP-003, and CPP-005 based on real manual model runs; all three task versions are now version 2.
+- Stage 2 — Autonomous OpenCode execution: `run` creates a fresh `_aut_opencode` workspace, invokes OpenCode non-interactively through a runner adapter, preserves JSON agent output plus structured run metadata, and independently reuses the manual CMake validator.
+- Autonomous runs support the same safe `--label` suffix as manual preparation, a 900-second default configurable timeout, and `run --all` with an optional `--task` filter. Failed or incomplete runs are retained and later task runs continue.
+- Stage 2 live batch verification completed with only `llama-hase/qwen3.8-27b` (`llama.cpp`): CPP-001, CPP-003, and CPP-005 all returned `SUCCESS` from OpenCode and from independent visible/hidden validation. Agent durations were 424.48 s, 548.70 s, and 324.64 s respectively. The Windows OpenCode adapter uses the npm `.cmd` wrapper and redirects `TEMP`/`TMP` into the workspace.
 
 ## Benchmark specification review (2026-09-11)
 
@@ -20,12 +23,15 @@
 
 - Toolchain detected: Visual Studio Community 2026 / MSVC 19.51.36257 x64
   (`cl.exe` at `C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\cl.exe`), CMake 4.4.3, Python 3.12.4.
-- Framework tests passed: `python -m unittest discover -s tests -v` (9 tests at the latest verification).
+- Framework tests passed: `python -m unittest discover -s tests -v` (15 tests at the latest verification).
 - Commands exercised:
   - `python -m hasebench list`
   - `python -m hasebench info cpp_001`
   - `python -m hasebench prepare cpp_001`, `python -m hasebench prepare cpp_003`, and `python -m hasebench prepare cpp_005`
   - `python -m hasebench validate <workspace> --verbose` for each solved workspace
+  - `python -m hasebench run --help` and framework-isolated autonomous-run tests for CPP-001, CPP-003, and CPP-005 (using the same runner/orchestration path without consuming a configured model run)
+  - Live autonomous CPP-001 run: `python -m hasebench run cpp_001 --agent opencode --model llama-hase/qwen3.8-27b --backend llama.cpp --label qwen38-27b-q4 --timeout 900` completed `SUCCESS` (264.09-second agent run; independent visible and hidden validators passed).
+  - Live autonomous batch: `python -m hasebench run --all --agent opencode --model llama-hase/qwen3.8-27b --backend llama.cpp --label qwen38-27b-q4 --timeout 900` completed successfully for CPP-001, CPP-003, and CPP-005; each used a fresh workspace and the shared authoritative validator.
   - `ctest --test-dir <cpp_005-workspace>\build\hasebench-hidden -C Debug -R ^spsc_hidden$ --output-on-failure --repeat until-fail:10`
 - Fresh unmodified starters for all three tasks configured and built with MSVC, then correctly reported `VISIBLE_TEST_FAILURE`.
 - Correct local-only solutions passed visible and hidden validation for all three tasks. The canonical task directories were not used as workspaces or modified by preparation/validation.
@@ -39,10 +45,9 @@
 
 ## Active
 
-- No active implementation stage. Stage 1 is complete.
+- No active implementation stage. Stage 2 is complete.
 
 ## Pending
 
-- Stage 2 — Autonomous OpenCode execution (explicitly out of scope until Stage 1 is reliable).
 - Stage 3 — Expand the C++ suite.
 - Stages 4–9 — Reporting, Pi, Rust, general tasks, telemetry, and visual tasks.
