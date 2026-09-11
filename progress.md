@@ -12,6 +12,8 @@
 - Stage 2 — Autonomous OpenCode execution: `run` creates a fresh `_aut_opencode` workspace, invokes OpenCode non-interactively through a runner adapter, preserves JSON agent output plus structured run metadata, and independently reuses the manual CMake validator.
 - Autonomous runs support the same safe `--label` suffix as manual preparation, a 900-second default configurable timeout, and `run --all` with an optional `--task` filter. Failed or incomplete runs are retained and later task runs continue.
 - Stage 2 live batch verification completed with only `llama-hase/qwen3.8-27b` (`llama.cpp`): CPP-001, CPP-003, and CPP-005 all returned `SUCCESS` from OpenCode and from independent visible/hidden validation. Agent durations were 424.48 s, 548.70 s, and 324.64 s respectively. The Windows OpenCode adapter uses the npm `.cmd` wrapper and redirects `TEMP`/`TMP` into the workspace.
+- Reproducible development environment: Python 3.12.4 is required exactly; `tools/setup-env.ps1` creates/reconciles the ignored repository-local `.venv`, supports a clean `-Recreate`, installs exact packaging/test versions, installs the project editable, and runs CLI/pytest sanity checks.
+- Autonomous run reporting: each task now prints the same concise build/visible/hidden/final status layout as validation, and every single or batch run writes a Git-ignored Markdown table under `results/`.
 
 ## Benchmark specification review (2026-09-11)
 
@@ -23,7 +25,7 @@
 
 - Toolchain detected: Visual Studio Community 2026 / MSVC 19.51.36257 x64
   (`cl.exe` at `C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\cl.exe`), CMake 4.4.3, Python 3.12.4.
-- Framework tests passed: `python -m unittest discover -s tests -v` (15 tests at the latest verification).
+- Framework tests passed: `python -m pytest` (17 tests at the latest verification, inside the recreated `.venv`).
 - Commands exercised:
   - `python -m hasebench list`
   - `python -m hasebench info cpp_001`

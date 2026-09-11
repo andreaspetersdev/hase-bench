@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from .agents import OpenCodeAgentRunner
+from .reports import RunSummaryRow, summary_row, write_markdown_summary
 from .runs import AGENT_LOG, RUN_METADATA, AutonomousRunResult, run_autonomous
 from .tasks import discover_tasks, find_task
 from .validation import validate_cpp
@@ -77,7 +78,8 @@ def main() -> int:
         if args.command == "run":
             if args.all:
                 return _run_all(args.task_filter, args)
-            return _run_one(find_task(args.task), args)
+            exit_code, _ = _run_one(find_task(args.task), args)
+            return exit_code
         if args.all:
             return _validate_all(args.task, args.verbose)
         return _validate_one(args.workspace.resolve(), args.verbose)
@@ -86,7 +88,7 @@ def main() -> int:
         return 2
 
 
-def _run_one(task: object, args: argparse.Namespace) -> int:
+def _run_one(task: object, args: argparse.Namespace, write_summary: bool = True) -> tuple[int, RunSummaryRow]:
     if task.language != "cpp":
         raise ValueError(f"No autonomous runner is available for {task.language}")
     result = run_autonomous(
@@ -99,7 +101,11 @@ def _run_one(task: object, args: argparse.Namespace) -> int:
         args.label,
     )
     _print_run_result(result, task.difficulty, args.model, args.verbose)
-    return 0 if result.outcome == "SUCCESS" else 1
+    row = summary_row(result, _compact_complexity(task.difficulty))
+    if write_summary:
+        path = write_markdown_summary([row], args.agent, args.model, args.backend)
+        print(f"Summary:   {path}")
+    return (0 if result.outcome == "SUCCESS" else 1), row
 
 
 def _run_all(task_filter: str | None, args: argparse.Namespace) -> int:
@@ -111,31 +117,29 @@ def _run_all(task_filter: str | None, args: argparse.Namespace) -> int:
             raise KeyError(f"Unknown task: {task_filter}")
 
     failures = 0
+    rows: list[RunSummaryRow] = []
     print(f"Running: {len(selected)}")
     for task in selected:
         try:
-            exit_code = _run_one(task, args)
+            exit_code, row = _run_one(task, args, write_summary=False)
             failures += exit_code != 0
+            rows.append(row)
         except (ValueError, OSError) as error:
             failures += 1
             print(f"{task.identifier}: {_colored_outcome('RUN_ERROR')}; {error}")
-    print(f"\nCompleted: {len(selected)}\nPASS: {len(selected) - failures}\nFAIL: {failures}")
+    path = write_markdown_summary(rows, args.agent, args.model, args.backend)
+    print(f"\nCompleted: {len(selected)}\nPASS: {len(selected) - failures}\nFAIL: {failures}\nSummary:   {path}")
     return 0 if failures == 0 else 1
 
 
 def _print_run_result(result: AutonomousRunResult, difficulty: str, model: str, verbose: bool) -> None:
     validation = result.validation
-    agent_status = "PASS" if result.agent.outcome == "SUCCESS" else "FAIL"
-    print(
-        f"{result.workspace.name} / {validation.task} ({_compact_complexity(difficulty)}): "
-        f"{_colored_outcome(result.outcome)} "
-        f"(agent: {_colored_status(agent_status)}, visible: {_colored_status(_status(validation.visible))}, "
-        f"hidden: {_colored_status(_status(validation.hidden))})"
-    )
-    print(f"Workspace: {result.workspace}\nModel: {model}\nMetadata: {result.workspace / RUN_METADATA}\nLog: {result.workspace / AGENT_LOG}")
+    print(f"Workspace:  {result.workspace}\nModel:      {model}\n"
+          f"Agent:      {_colored_outcome(result.agent.outcome)} ({result.agent.duration_seconds:.2f}s)")
+    _print_result(validation, _compact_complexity(difficulty), verbose)
+    print(f"Metadata:   {result.workspace / RUN_METADATA}\nLog:        {result.workspace / AGENT_LOG}")
     if verbose:
         print(f"\n--- Agent ({result.agent.duration_seconds:.2f}s) ---\n{result.agent.output}")
-        _print_result(validation, _compact_complexity(difficulty), True)
 
 
 def _validate_one(workspace: Path, verbose: bool) -> int:

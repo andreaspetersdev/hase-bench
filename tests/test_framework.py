@@ -14,8 +14,9 @@ from hasebench.agents import (
     _agent_environment,
     _default_opencode_executable,
 )
-from hasebench.cli import _compact_complexity, _print_result, _run_all, _validate_all
-from hasebench.runs import AGENT_LOG, RUN_METADATA, run_autonomous
+from hasebench.cli import _compact_complexity, _print_result, _print_run_result, _run_all, _validate_all
+from hasebench.runs import AGENT_LOG, RUN_METADATA, AutonomousRunResult, run_autonomous
+from hasebench.reports import RunSummaryRow, write_markdown_summary
 from hasebench.tasks import discover_tasks, find_task
 from hasebench.validation import CommandResult, ValidationResult, _deduplicate_environment
 from hasebench.workspaces import (
@@ -161,10 +162,38 @@ class FrameworkTests(unittest.TestCase):
             self.assertIn('"outcome": "SUCCESS"', metadata)
 
     def test_run_all_uses_each_discovered_task_and_continues_after_failure(self) -> None:
-        arguments = type("Arguments", (), {"task_filter": None})()
-        with patch("hasebench.cli._run_one", side_effect=[0, 1, 0]) as run_one, redirect_stdout(StringIO()):
+        arguments = type("Arguments", (), {"task_filter": None, "agent": "opencode", "model": "test", "backend": "test"})()
+        row = object()
+        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row), (0, row)]) as run_one, \
+             patch("hasebench.cli.write_markdown_summary"), redirect_stdout(StringIO()) as output:
             self.assertEqual(_run_all(None, arguments), 1)
+        self.assertIn("Summary:", output.getvalue())
         self.assertEqual([call.args[0].identifier for call in run_one.call_args_list], ["cpp_001", "cpp_003", "cpp_005"])
+
+    def test_markdown_summary_contains_a_result_table(self) -> None:
+        row = RunSummaryRow("cpp_001", "M", "PASS", "PASS", "PASS", "PASS", "SUCCESS", Path("work/run-A"))
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch("hasebench.reports.repository_root", return_value=Path(temporary)):
+                report = write_markdown_summary([row], "opencode", "hase/qwen", "llama.cpp")
+            content = report.read_text(encoding="utf-8")
+        self.assertIn("| Task | Complexity | Agent | Build | Visible | Hidden | Result | Workspace |", content)
+        self.assertIn("| cpp_001 | M | PASS | PASS | PASS | PASS | SUCCESS |", content)
+
+    def test_autonomous_screen_report_includes_validation_details(self) -> None:
+        command = CommandResult(0, "", 0.0)
+        result = AutonomousRunResult(
+            Path("work/run-A"),
+            AgentRunResult("start", "end", 2.0, 0, "", "SUCCESS"),
+            ValidationResult("cpp_001", command, command, command),
+            "SUCCESS",
+        )
+        output = StringIO()
+        with redirect_stdout(output):
+            _print_run_result(result, "medium", "hase/qwen", False)
+        self.assertIn("Build:      PASS", output.getvalue())
+        self.assertIn("Visible:    PASS", output.getvalue())
+        self.assertIn("Hidden:     PASS", output.getvalue())
+        self.assertIn("Result:     SUCCESS", output.getvalue())
 
 
 if __name__ == "__main__":

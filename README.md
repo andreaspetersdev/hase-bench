@@ -2,9 +2,29 @@
 
 The current milestone supports manual and autonomous C++ benchmark runs through OpenCode.
 
+## Python environment
+
+Hase Bench requires exactly Python 3.12.4. Create or reconcile the repository-local environment before using the framework:
+
+```powershell
+.\tools\setup-env.ps1
+.\.venv\Scripts\Activate.ps1
+
+python -m hasebench list
+python -m pytest
+```
+
+The bootstrapper creates `.venv`, installs the project in editable mode, and pins its packaging and test dependencies. It rejects any interpreter other than Python 3.12.4. Run it again at any time to restore the declared package versions.
+
+To completely recreate the environment:
+
+```powershell
+.\tools\setup-env.ps1 -Recreate
+```
+
 Run the commands from a Visual Studio 2026 x64 Developer PowerShell (or an
 equivalently initialized MSVC environment). `cl.exe` and CMake must be on
-`PATH`; the framework deliberately does not select a GCC or Clang fallback.
+`PATH`; activate `.venv` first. The framework deliberately does not select a GCC or Clang fallback.
 
 From the repository root:
 
@@ -45,6 +65,8 @@ python -m hasebench run --all --task cpp_003 --agent opencode --model hase/qwen2
 `--model` is passed unchanged to OpenCode's `--model` option. Configure the provider, endpoint, credentials, and any model alias in OpenCode; the benchmark does not hard-code hase connection settings. Use `--model-name` and `--backend` when the selector alone is not sufficiently descriptive for later comparison. The default agent timeout is 900 seconds; override it with `--timeout` for a particular run.
 
 Each autonomous run creates a new `_aut_opencode` workspace, runs OpenCode with non-interactive JSON output and permission auto-approval inside that workspace, then validates it with the same visible and hidden CMake validators as manual runs. `TEMP` and `TMP` are redirected into the workspace so ordinary agent-created temporary files are preserved there too. The workspace is always preserved. It contains `hasebench-agent.log` and `hasebench-run.json`, recording the selected configuration, model/backend labels, agent exit status/timing, validation commands/results, and final classification. Use `--verbose` to print captured agent and validation diagnostics.
+
+After every autonomous task, the console prints its workspace, model, agent outcome/duration, build, visible-test, hidden-test, and final result. Every command also writes a Markdown summary table under `results/`; `run --all` produces one aggregate table for the batch, while a single-task run produces a one-row table. These generated reports are ignored by Git.
 
 Currently available tasks are CPP-001 (expression evaluator), CPP-003 (generic LRU cache), and CPP-005 (SPSC ring buffer). See [progress.md](progress.md) for the current stage.
 
