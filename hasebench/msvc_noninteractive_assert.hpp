@@ -6,6 +6,9 @@
 #ifdef _MSC_VER
 #include <crtdbg.h>
 #include <cstdlib>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 
 namespace hasebench {
@@ -19,7 +22,9 @@ struct NonInteractiveMsvcRuntime {
     }
 };
 
-inline const NonInteractiveMsvcRuntime non_interactive_runtime{};
+// Internal linkage keeps this header C++11-compatible for CMake's initial
+// compiler probe, which runs before a task's C++ standard is configured.
+static const NonInteractiveMsvcRuntime non_interactive_runtime{};
 } // namespace detail
 } // namespace hasebench
 #endif
