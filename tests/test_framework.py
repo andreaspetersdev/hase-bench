@@ -13,6 +13,7 @@ from hasebench.agents import (
     OpenCodeAgentRunner,
     _agent_environment,
     _default_opencode_executable,
+    extract_opencode_telemetry,
 )
 from hasebench.cli import _compact_complexity, _print_result, _print_run_result, _run_all, _validate_all
 from hasebench.runs import AGENT_LOG, RUN_METADATA, AutonomousRunResult, run_autonomous
@@ -130,6 +131,21 @@ class FrameworkTests(unittest.TestCase):
             self.assertEqual(environment["TMP"], str(workspace / ".hasebench-tmp"))
             self.assertTrue((workspace / ".hasebench-tmp").is_dir())
 
+    def test_opencode_telemetry_uses_json_stream_usage_and_excludes_tool_time(self) -> None:
+        output = "\n".join([
+            '{"type":"step_start","timestamp":1000,"part":{"messageID":"m"}}',
+            '{"type":"tool_use","part":{"messageID":"m","time":{"start":1500,"end":2500}}}',
+            '{"type":"step_finish","timestamp":5000,"part":{"messageID":"m","tokens":{"total":2048,"output":120}}}',
+            '{"type":"step_start","timestamp":6000,"part":{"messageID":"n"}}',
+            '{"type":"step_finish","timestamp":8000,"part":{"messageID":"n","tokens":{"total":4096,"output":80}}}',
+            'not JSON',
+        ])
+        telemetry = extract_opencode_telemetry(output)
+        self.assertEqual(telemetry.max_context_tokens, 4096)
+        self.assertEqual(telemetry.generated_tokens, 200)
+        self.assertEqual(telemetry.model_duration_seconds, 5.0)
+        self.assertEqual(telemetry.generation_tokens_per_second, 40.0)
+
     @unittest.skipUnless(__import__("os").name == "nt", "Windows command wrapper selection")
     def test_opencode_default_uses_windows_command_wrapper(self) -> None:
         with patch("hasebench.agents.shutil.which", return_value="C:/npm/opencode.cmd"):
@@ -159,6 +175,7 @@ class FrameworkTests(unittest.TestCase):
             self.assertIn('"mode": "autonomous"', metadata)
             self.assertIn('"configuration": "hase/qwen"', metadata)
             self.assertIn('"backend": "llama.cpp"', metadata)
+            self.assertIn('"total_duration_seconds"', metadata)
             self.assertIn('"outcome": "SUCCESS"', metadata)
 
     def test_run_all_uses_each_discovered_task_and_continues_after_failure(self) -> None:
@@ -171,13 +188,16 @@ class FrameworkTests(unittest.TestCase):
         self.assertEqual([call.args[0].identifier for call in run_one.call_args_list], ["cpp_001", "cpp_002", "cpp_003", "cpp_005"])
 
     def test_markdown_summary_contains_a_result_table(self) -> None:
-        row = RunSummaryRow("cpp_001", "M", "PASS", "PASS", "PASS", "PASS", "SUCCESS", Path("work/run-A"))
+        row = RunSummaryRow(
+            "cpp_001", "M", "PASS", "PASS", "PASS", "PASS", 4096, 200, 40.0, 5.0, 8.0, 10.0,
+            "SUCCESS", Path("work/run-A"),
+        )
         with tempfile.TemporaryDirectory() as temporary:
             with patch("hasebench.reports.repository_root", return_value=Path(temporary)):
                 report = write_markdown_summary([row], "opencode", "hase/qwen", "llama.cpp")
             content = report.read_text(encoding="utf-8")
-        self.assertIn("| Task | Complexity | Agent | Build | Visible | Hidden | Result | Workspace |", content)
-        self.assertIn("| cpp_001 | M | PASS | PASS | PASS | PASS | SUCCESS |", content)
+        self.assertIn("| Task | Complexity | Agent | Build | Visible | Hidden | Context | Generation |", content)
+        self.assertIn("| cpp_001 | M | PASS | PASS | PASS | PASS | 4,096 | 200 @ 40.00 tok/s |", content)
 
     def test_autonomous_screen_report_includes_validation_details(self) -> None:
         command = CommandResult(0, "", 0.0)
@@ -193,6 +213,8 @@ class FrameworkTests(unittest.TestCase):
         self.assertIn("Build:      PASS", output.getvalue())
         self.assertIn("Visible:    PASS", output.getvalue())
         self.assertIn("Hidden:     PASS", output.getvalue())
+        self.assertIn("Context:    unavailable", output.getvalue())
+        self.assertIn("Full time:", output.getvalue())
         self.assertIn("Result:     SUCCESS", output.getvalue())
 
 

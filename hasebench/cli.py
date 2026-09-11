@@ -30,7 +30,7 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--model", required=True, help="OpenCode model or configuration selector")
     run.add_argument("--model-name", help="model name retained in run metadata (defaults to --model)")
     run.add_argument("--backend", default="opencode-managed", help="backend retained in run metadata")
-    run.add_argument("--timeout", type=_positive_int, default=900, help="agent timeout in seconds (default: 900)")
+    run.add_argument("--timeout", type=_positive_int, default=1800, help="agent timeout in seconds (default: 1800)")
     run.add_argument("--label", help="optional safe label included in each workspace name")
     run.add_argument("--verbose", action="store_true", help="print captured agent and validation diagnostics")
     validate = commands.add_parser("validate", help="independently validate one or all workspaces")
@@ -134,12 +134,35 @@ def _run_all(task_filter: str | None, args: argparse.Namespace) -> int:
 
 def _print_run_result(result: AutonomousRunResult, difficulty: str, model: str, verbose: bool) -> None:
     validation = result.validation
+    telemetry = result.agent.telemetry
     print(f"Workspace:  {result.workspace}\nModel:      {model}\n"
-          f"Agent:      {_colored_outcome(result.agent.outcome)} ({result.agent.duration_seconds:.2f}s)")
+          f"Agent:      {_colored_outcome(result.agent.outcome)} ({_format_duration(result.agent.duration_seconds)})\n"
+          f"Context:    {_format_tokens(telemetry.max_context_tokens)}\n"
+          f"Generation: {_format_generation(telemetry.generated_tokens, telemetry.generation_tokens_per_second)}\n"
+          f"Model time: {_format_duration(telemetry.model_duration_seconds, estimated=True)}\n"
+          f"Full time:  {_format_duration(result.total_duration_seconds)}")
     _print_result(validation, _compact_complexity(difficulty), verbose)
     print(f"Metadata:   {result.workspace / RUN_METADATA}\nLog:        {result.workspace / AGENT_LOG}")
     if verbose:
-        print(f"\n--- Agent ({result.agent.duration_seconds:.2f}s) ---\n{result.agent.output}")
+        print(f"\n--- Agent ({_format_duration(result.agent.duration_seconds)}) ---\n{result.agent.output}")
+
+
+def _format_duration(seconds: float | None, estimated: bool = False) -> str:
+    if seconds is None:
+        return "unavailable"
+    suffix = " (estimated)" if estimated else ""
+    minutes, remainder = divmod(seconds, 60)
+    return f"{int(minutes)}m {remainder:.1f}s{suffix}" if minutes else f"{remainder:.1f}s{suffix}"
+
+
+def _format_tokens(tokens: int | None) -> str:
+    return "unavailable" if tokens is None else f"{tokens:,} tokens"
+
+
+def _format_generation(tokens: int | None, speed: float | None) -> str:
+    if tokens is None or speed is None:
+        return "unavailable"
+    return f"{tokens:,} tokens ({speed:.2f} tok/s)"
 
 
 def _validate_one(workspace: Path, verbose: bool) -> int:

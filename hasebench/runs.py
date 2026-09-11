@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +29,7 @@ class AutonomousRunResult:
     agent: AgentRunResult
     validation: ValidationResult
     outcome: str
+    total_duration_seconds: float = 0.0
 
 
 def run_autonomous(
@@ -39,13 +41,14 @@ def run_autonomous(
     timeout_seconds: int,
     label: str | None = None,
 ) -> AutonomousRunResult:
+    started = time.monotonic()
     workspace = prepare_workspace(task, mode="aut_opencode", label=label)
     agent = runner.run(
         AgentRunRequest(workspace, AUTONOMOUS_INSTRUCTION, model_configuration, timeout_seconds, workspace / AGENT_LOG)
     )
     validation = validate_cpp(workspace, task)
     outcome = agent.outcome if agent.outcome != "SUCCESS" else validation.outcome
-    result = AutonomousRunResult(workspace, agent, validation, outcome)
+    result = AutonomousRunResult(workspace, agent, validation, outcome, time.monotonic() - started)
     _write_metadata(result, task, model_configuration, model_name, backend, timeout_seconds)
     return result
 
@@ -67,6 +70,11 @@ def _write_metadata(
         "agent": {"name": "opencode", **asdict(result.agent)},
         "model": {"configuration": model_configuration, "name": model_name, "backend": backend},
         "agent_timeout_seconds": timeout_seconds,
+        "timing": {
+            "agent_duration_seconds": result.agent.duration_seconds,
+            "model_duration_seconds": result.agent.telemetry.model_duration_seconds,
+            "total_duration_seconds": result.total_duration_seconds,
+        },
         "workspace": str(result.workspace),
         "log_path": str(result.workspace / AGENT_LOG),
         "validation": _validation_metadata(result.validation),
