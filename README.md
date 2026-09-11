@@ -52,13 +52,13 @@ Use `--verbose` to print captured CMake and CTest diagnostics. Preparation copie
 Run one task in a fresh autonomous workspace:
 
 ```powershell
-python -m hasebench run cpp_001 --agent opencode --model hase/qwen27b-q4 --label A3B
+python -m hasebench run cpp_001 --agent opencode --model hase/qwen27b-q4 --label 27BQ4
 ```
 
 Run every available task, or limit an all-task run to a task ID:
 
 ```powershell
-python -m hasebench run --all --agent opencode --model hase/qwen27b-q4 --label A3B
+python -m hasebench run --all --agent opencode --model hase/qwen27b-q4 --label 27BQ4
 python -m hasebench run --all --task cpp_003 --agent opencode --model hase/qwen27b-q4
 ```
 
