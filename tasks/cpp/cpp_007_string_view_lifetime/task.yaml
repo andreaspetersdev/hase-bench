@@ -1,0 +1,8 @@
+{
+  "id": "cpp_007",
+  "title": "Template lifetime repair",
+  "language": "cpp",
+  "standard": "c++20",
+  "difficulty": "hard",
+  "version": 1
+}

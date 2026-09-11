@@ -24,6 +24,13 @@
 - Reviewed planned CPP-006 through CPP-020 and deepened their specifications in `CODEX_TASK.md` and `TASKS.md`. Hard tasks now have concrete re-entrancy, ownership, multi-file, deterministic-concurrency, or incremental-state requirements; very-hard tasks now require substantive numerical, synchronization, or architecture invariants with objective validation. This is specification work only: no future task project was created or relabeled.
 - Added planned CPP-021 SIMD PCA / covariance kernel as an expert numerical-systems benchmark. It separates scalar correctness from optional runtime-dispatched AVX2 acceleration, requires portable fallback behavior, and defines objective tolerance-based PCA, dispatch, and residual validation. No CPP-021 starter project has been created yet.
 - CPP-006 Binary Serialization added as version 2. It is a C++20 medium-hard fixed-format packet task: exact big-endian byte layout, bounded payloads, FNV-1a integrity verification, and a result API that distinguishes invalid headers, impossible lengths, truncation, and checksum corruption without exposing partial packets. Version 2 formalizes partial-magic classification: an empty or matching prefix is truncated, while a mismatch is an invalid header.
+- CPP-007 Template lifetime repair added as version 1. It is a hard C++20 multi-file debugging task with an owning `CompiledTemplate`, an explicitly borrowing zero-copy `TemplateView`, and a cache/formatter ownership boundary. Visible and hidden tests cover ordinary rendering and ownership/copy/move/cache-reallocation behavior respectively; the author solution passes both suites.
+
+## CPP-007 autonomous review (2026-09-11)
+
+- `llama-hase/qwen3.8-27b` completed CPP-007 successfully. Its implementation keeps the owning source buffer and re-derives internal views after construction, copy/move construction, and copy/move assignment; the independent visible and hidden validators both pass. Agent wall time was 1,366.4 seconds, with 64,723 maximum observed context tokens and 42,995 generated tokens.
+- `lmstudio/qwen/qwen3.6-35b-a3b` correctly diagnosed the source/view lifetime defect and introduced owned storage, but its final `CompiledTemplate` contained a `std::unique_ptr` and did not provide copy/move assignment. The hidden suite therefore failed at compilation when exercising the explicitly required copy assignment. The result is recorded as `COMPILATION_FAILURE`; this is a model-quality failure, not a specification gap. The preserved workspace also reached the 1,800-second agent timeout during its extended repair loop.
+- No CPP-007 contract change was required after review. The task's explicit ordinary copy construction, copy assignment, move construction, and move assignment requirements were sufficient to distinguish the implementations, while the separate `TemplateView` test preserved the intended external zero-copy behavior.
 
 ## Benchmark specification review (2026-09-11)
 
@@ -65,7 +72,7 @@
 
 ## Active
 
-- Stage 3 — Expand the C++ suite incrementally. CPP-006 version 2 is complete: its reference implementation and framework tests pass, and both approved model runs were reviewed. Stop here before adding CPP-007.
+- Stage 3 — Expand the C++ suite incrementally. CPP-007 version 1 is complete: its reference implementation and framework tests pass, both approved model runs were reviewed, and the A3B copy-assignment failure was correctly classified. Stop here before adding CPP-008.
 
 ## Pending
 

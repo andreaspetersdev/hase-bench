@@ -16,12 +16,12 @@ version changes.
 | CPP-004 | Thread pool | Hard | 3 | Fixed-worker C++20 pool with futures, exceptions, concurrent submission, forwarding of lvalue/rvalue and move-only work, draining shutdown, and destructor draining. It intentionally excludes concurrent `shutdown()` calls and shutdown from a worker, keeping the challenge focused on a reliable conventional pool. |
 | CPP-005 | SPSC ring buffer | Very hard | 3 | Lock-free single-producer/single-consumer queue with exact capacity, `Capacity == 1`, wrap-around, move-only/raw-storage lifetime correctness, failed-pop preservation, and acquire/release payload publication. The hidden suite uses a deterministic structured-payload stress test plus a narrow source-contract check for the explicit no-mutex/non-`seq_cst`-only requirement. |
 | CPP-006 | Binary serialization | Medium-hard | 2 | Exact fixed big-endian packet encoding with bounded payloads, FNV-1a integrity checking, and non-overlapping invalid-header, impossible-length, truncation, and corruption classifications, including explicit partial-magic precedence. |
+| CPP-007 | Template lifetime repair | Hard | 1 | Multi-file diagnosis of stale `string_view` state across parser, owning value, cache, and delayed rendering boundaries. Owning templates must have normal value semantics; the distinct externally-backed `TemplateView` must preserve its documented zero-copy semantics. |
 
 ## Planned tasks
 
 | ID | Title | Difficulty | Intended benchmark scope |
 | --- | --- | --- | --- |
-| CPP-007 | Existing bug: lifetime / `string_view` | Hard | At least three files and two ownership boundaries conceal a dangling-view defect; the repair must preserve the public API, valid external zero-copy use, and correct copy/move behavior. |
 | CPP-008 | Existing bug: deadlock | Hard | Barrier-driven opposing transfers, self/insufficient-resource/error paths, aggregate-balance invariants, and a real local lock-order strategy rather than global locking or sleep retries. |
 | CPP-009 | JSON-like configuration merge | Medium | Precise recursive `variant` merge semantics for objects, arrays, scalar/type replacement, absent versus null, deeply nested values, and non-aliasing inputs. |
 | CPP-010 | Graph dependency resolver | Medium-hard | Deterministic lexically tie-broken topological resolution, duplicate/missing diagnostics, and closed useful cycle paths across deep and disconnected graphs. |
