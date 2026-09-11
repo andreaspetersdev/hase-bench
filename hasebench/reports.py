@@ -11,6 +11,7 @@ from .tasks import repository_root
 @dataclass(frozen=True)
 class RunSummaryRow:
     task: str
+    title: str
     complexity: str
     agent: str
     build: str
@@ -26,10 +27,10 @@ class RunSummaryRow:
     workspace: Path
 
 
-def summary_row(result: AutonomousRunResult, complexity: str) -> RunSummaryRow:
+def summary_row(result: AutonomousRunResult, title: str, complexity: str) -> RunSummaryRow:
     validation = result.validation
     return RunSummaryRow(
-        validation.task, complexity,
+        validation.task, title, complexity,
         "PASS" if result.agent.outcome == "SUCCESS" else "FAIL",
         "PASS" if validation.build.returncode == 0 else "FAIL",
         _command_status(validation.visible), _command_status(validation.hidden),
@@ -53,12 +54,12 @@ def write_markdown_summary(
         f"- Backend: `{backend}`",
         f"- Variant: `{variant or 'default'}`",
         "",
-        "| Task | Complexity | Agent | Build | Visible | Hidden | Context | Generation | Model time | Agent time | Full time | Result | Workspace |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Task | Description | Complexity | Agent | Build | Visible | Hidden | Context | Generation | Model time | Agent time | Full time | Result | Workspace |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for row in rows:
         lines.append(
-            f"| {row.task} | {row.complexity} | {row.agent} | {row.build} | {row.visible} | "
+            f"| {row.task} | {row.title} | {row.complexity} | {row.agent} | {row.build} | {row.visible} | "
             f"{row.hidden} | {_tokens(row.context_tokens)} | {_generation(row.generated_tokens, row.generation_tokens_per_second)} | "
             f"{_duration(row.model_duration_seconds, estimated=True)} | {_duration(row.agent_duration_seconds)} | "
             f"{_duration(row.total_duration_seconds)} | {row.outcome} | `{row.workspace}` |"

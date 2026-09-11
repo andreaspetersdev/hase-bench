@@ -70,7 +70,7 @@ def _write_metadata(
         "run_id": result.workspace.name,
         "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "mode": "autonomous",
-        "task": {"id": task.identifier, "version": task.version, "language": task.language},
+        "task": {"id": task.identifier, "title": task.title, "version": task.version, "language": task.language},
         "agent": {"name": "opencode", **asdict(result.agent)},
         "model": {"configuration": model_configuration, "name": model_name, "backend": backend, "variant": variant},
         "agent_timeout_seconds": timeout_seconds,

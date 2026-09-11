@@ -102,8 +102,8 @@ def _run_one(task: object, args: argparse.Namespace, write_summary: bool = True)
         args.label,
         args.variant,
     )
-    _print_run_result(result, task.difficulty, args.model, args.variant, args.verbose)
-    row = summary_row(result, _compact_complexity(task.difficulty))
+    _print_run_result(result, task.title, task.difficulty, args.model, args.variant, args.verbose)
+    row = summary_row(result, task.title, _compact_complexity(task.difficulty))
     if write_summary:
         path = write_markdown_summary([row], args.agent, args.model, args.backend, args.variant)
         print(f"Summary:   {path}")
@@ -135,7 +135,7 @@ def _run_all(task_filter: str | None, args: argparse.Namespace) -> int:
 
 
 def _print_run_result(
-    result: AutonomousRunResult, difficulty: str, model: str, variant: str | None, verbose: bool
+    result: AutonomousRunResult, title: str, difficulty: str, model: str, variant: str | None, verbose: bool
 ) -> None:
     validation = result.validation
     telemetry = result.agent.telemetry
@@ -146,7 +146,7 @@ def _print_run_result(
           f"Generation: {_format_generation(telemetry.generated_tokens, telemetry.generation_tokens_per_second)}\n"
           f"Model time: {_format_duration(telemetry.model_duration_seconds, estimated=True)}\n"
           f"Full time:  {_format_duration(result.total_duration_seconds)}")
-    _print_result(validation, _compact_complexity(difficulty), verbose)
+    _print_result(validation, title, _compact_complexity(difficulty), verbose)
     print(f"Metadata:   {result.workspace / RUN_METADATA}\nLog:        {result.workspace / AGENT_LOG}")
     if verbose:
         print(f"\n--- Agent ({_format_duration(result.agent.duration_seconds)}) ---\n{result.agent.output}")
@@ -175,7 +175,7 @@ def _validate_one(workspace: Path, verbose: bool) -> int:
     if task.language != "cpp":
         raise ValueError(f"No validator is available for {task.language}")
     result = validate_cpp(workspace, task)
-    _print_result(result, _compact_complexity(task.difficulty), verbose)
+    _print_result(result, task.title, _compact_complexity(task.difficulty), verbose)
     return 0 if result.outcome == "SUCCESS" else 1
 
 
@@ -195,10 +195,12 @@ def _validate_all(task_filter: str | None, verbose: bool) -> int:
             visible = hidden = "NOT_RUN"
             detail = candidate.metadata_error
             complexity = "unknown"
+            title = "unknown task"
         else:
             try:
                 task = find_task(task_id)
                 complexity = _compact_complexity(task.difficulty)
+                title = task.title
                 if task.language != "cpp":
                     raise ValueError(f"No validator is available for {task.language}")
                 result = validate_cpp(candidate.path, task)
@@ -207,16 +209,17 @@ def _validate_all(task_filter: str | None, verbose: bool) -> int:
                 hidden = _status(result.hidden)
                 detail = ""
                 if verbose:
-                    _print_result(result, complexity, True)
+                    _print_result(result, title, complexity, True)
             except (KeyError, ValueError, OSError) as error:
                 outcome = "WORKSPACE_ERROR"
                 visible = hidden = "NOT_RUN"
                 detail = str(error)
                 complexity = "unknown"
+                title = "unknown task"
         rows.append(outcome)
         passed += outcome == "SUCCESS"
         suffix = f"; {detail}" if detail else ""
-        print(f"{workspace_id} / {task_id} ({complexity}): {_colored_outcome(outcome)} "
+        print(f"{workspace_id} / {task_id} - {title} ({complexity}): {_colored_outcome(outcome)} "
               f"(visible: {_colored_status(visible)}, hidden: {_colored_status(hidden)}{suffix})")
 
     failed = len(rows) - passed
@@ -258,8 +261,8 @@ def _compact_complexity(difficulty: str) -> str:
     return labels.get(difficulty.lower(), difficulty.upper())
 
 
-def _print_result(result: object, complexity: str, verbose: bool) -> None:
-    print(f"Task:       {result.task}\nComplexity: {complexity}\n"
+def _print_result(result: object, title: str, complexity: str, verbose: bool) -> None:
+    print(f"Task:       {result.task} - {title}\nComplexity: {complexity}\n"
           f"Build:      {'PASS' if result.build.returncode == 0 else 'FAIL'}")
     if result.visible is not None:
         print(f"Visible:    {_status(result.visible)}")

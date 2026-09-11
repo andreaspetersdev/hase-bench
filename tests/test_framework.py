@@ -96,8 +96,8 @@ class FrameworkTests(unittest.TestCase):
         result = ValidationResult("cpp_001", command, command, command)
         output = StringIO()
         with redirect_stdout(output):
-            _print_result(result, "M", False)
-        self.assertIn("Task:       cpp_001\nComplexity: M", output.getvalue())
+            _print_result(result, "Expression evaluator", "M", False)
+        self.assertIn("Task:       cpp_001 - Expression evaluator\nComplexity: M", output.getvalue())
 
     def test_batch_validation_report_includes_task_complexity(self) -> None:
         command = CommandResult(0, "", 0.0)
@@ -108,7 +108,7 @@ class FrameworkTests(unittest.TestCase):
              patch("hasebench.cli.validate_cpp", return_value=result), \
              redirect_stdout(output):
             self.assertEqual(_validate_all(None, False), 0)
-        self.assertIn("run-A / cpp_001 (M): SUCCESS", output.getvalue())
+        self.assertIn("run-A / cpp_001 - Expression evaluator (M): SUCCESS", output.getvalue())
 
     def test_complexity_labels_are_compact(self) -> None:
         self.assertEqual(_compact_complexity("easy"), "E")
@@ -183,6 +183,7 @@ class FrameworkTests(unittest.TestCase):
             self.assertEqual((workspace / AGENT_LOG).read_text(encoding="utf-8"), "agent output")
             self.assertIn('"mode": "autonomous"', metadata)
             self.assertIn('"configuration": "hase/qwen"', metadata)
+            self.assertIn('"title": "Expression evaluator"', metadata)
             self.assertIn('"backend": "llama.cpp"', metadata)
             self.assertIn('"variant": "xhigh"', metadata)
             self.assertIn('"total_duration_seconds"', metadata)
@@ -201,15 +202,15 @@ class FrameworkTests(unittest.TestCase):
 
     def test_markdown_summary_contains_a_result_table(self) -> None:
         row = RunSummaryRow(
-            "cpp_001", "M", "PASS", "PASS", "PASS", "PASS", 4096, 200, 40.0, 5.0, 8.0, 10.0,
+            "cpp_001", "Expression evaluator", "M", "PASS", "PASS", "PASS", "PASS", 4096, 200, 40.0, 5.0, 8.0, 10.0,
             "SUCCESS", Path("work/run-A"),
         )
         with tempfile.TemporaryDirectory() as temporary:
             with patch("hasebench.reports.repository_root", return_value=Path(temporary)):
                 report = write_markdown_summary([row], "opencode", "hase/qwen", "llama.cpp")
             content = report.read_text(encoding="utf-8")
-        self.assertIn("| Task | Complexity | Agent | Build | Visible | Hidden | Context | Generation |", content)
-        self.assertIn("| cpp_001 | M | PASS | PASS | PASS | PASS | 4,096 | 200 @ 40.00 tok/s |", content)
+        self.assertIn("| Task | Description | Complexity | Agent | Build | Visible | Hidden | Context | Generation |", content)
+        self.assertIn("| cpp_001 | Expression evaluator | M | PASS | PASS | PASS | PASS | 4,096 | 200 @ 40.00 tok/s |", content)
 
     def test_autonomous_screen_report_includes_validation_details(self) -> None:
         command = CommandResult(0, "", 0.0)
@@ -221,13 +222,14 @@ class FrameworkTests(unittest.TestCase):
         )
         output = StringIO()
         with redirect_stdout(output):
-            _print_run_result(result, "medium", "hase/qwen", None, False)
+            _print_run_result(result, "Expression evaluator", "medium", "hase/qwen", None, False)
         self.assertIn("Build:      PASS", output.getvalue())
         self.assertIn("Visible:    PASS", output.getvalue())
         self.assertIn("Hidden:     PASS", output.getvalue())
         self.assertIn("Context:    unavailable", output.getvalue())
         self.assertIn("Full time:", output.getvalue())
         self.assertIn("Result:     SUCCESS", output.getvalue())
+        self.assertIn("Task:       cpp_001 - Expression evaluator", output.getvalue())
 
 
 if __name__ == "__main__":
