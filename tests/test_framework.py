@@ -29,8 +29,8 @@ from hasebench.workspaces import (
 
 
 class FrameworkTests(unittest.TestCase):
-    def test_three_initial_tasks_are_discovered(self) -> None:
-        self.assertEqual([task.identifier for task in discover_tasks()], ["cpp_001", "cpp_003", "cpp_005"])
+    def test_cpp_tasks_are_discovered(self) -> None:
+        self.assertEqual([task.identifier for task in discover_tasks()], ["cpp_001", "cpp_002", "cpp_003", "cpp_005"])
         self.assertEqual(find_task("cpp_003").standard, "c++20")
 
     def test_workspace_contains_no_hidden_validator(self) -> None:
@@ -164,11 +164,11 @@ class FrameworkTests(unittest.TestCase):
     def test_run_all_uses_each_discovered_task_and_continues_after_failure(self) -> None:
         arguments = type("Arguments", (), {"task_filter": None, "agent": "opencode", "model": "test", "backend": "test"})()
         row = object()
-        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row), (0, row)]) as run_one, \
+        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row), (0, row), (0, row)]) as run_one, \
              patch("hasebench.cli.write_markdown_summary"), redirect_stdout(StringIO()) as output:
             self.assertEqual(_run_all(None, arguments), 1)
         self.assertIn("Summary:", output.getvalue())
-        self.assertEqual([call.args[0].identifier for call in run_one.call_args_list], ["cpp_001", "cpp_003", "cpp_005"])
+        self.assertEqual([call.args[0].identifier for call in run_one.call_args_list], ["cpp_001", "cpp_002", "cpp_003", "cpp_005"])
 
     def test_markdown_summary_contains_a_result_table(self) -> None:
         row = RunSummaryRow("cpp_001", "M", "PASS", "PASS", "PASS", "PASS", "SUCCESS", Path("work/run-A"))

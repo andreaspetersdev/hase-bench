@@ -68,7 +68,7 @@ Each autonomous run creates a new `_aut_opencode` workspace, runs OpenCode with 
 
 After every autonomous task, the console prints its workspace, model, agent outcome/duration, build, visible-test, hidden-test, and final result. Every command also writes a Markdown summary table under `results/`; `run --all` produces one aggregate table for the batch, while a single-task run produces a one-row table. These generated reports are ignored by Git.
 
-Currently available tasks are CPP-001 (expression evaluator), CPP-003 (generic LRU cache), and CPP-005 (SPSC ring buffer). See [progress.md](progress.md) for the current stage.
+Currently available tasks are CPP-001 (expression evaluator), CPP-002 (CSV parser), CPP-003 (generic LRU cache), and CPP-005 (SPSC ring buffer). See [progress.md](progress.md) for the current stage.
 
 Prompt example:
 ```markdown

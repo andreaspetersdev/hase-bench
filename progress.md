@@ -14,8 +14,12 @@
 - Stage 2 live batch verification completed with only `llama-hase/qwen3.8-27b` (`llama.cpp`): CPP-001, CPP-003, and CPP-005 all returned `SUCCESS` from OpenCode and from independent visible/hidden validation. Agent durations were 424.48 s, 548.70 s, and 324.64 s respectively. The Windows OpenCode adapter uses the npm `.cmd` wrapper and redirects `TEMP`/`TMP` into the workspace.
 - Reproducible development environment: Python 3.12.4 is required exactly; `tools/setup-env.ps1` creates/reconciles the ignored repository-local `.venv`, supports a clean `-Recreate`, installs exact packaging/test versions, installs the project editable, and runs CLI/pytest sanity checks.
 - Autonomous run reporting: each task now prints the same concise build/visible/hidden/final status layout as validation, and every single or batch run writes a Git-ignored Markdown table under `results/`.
+- Stage 3 started: CPP-002 CSV parser added as version 2. It is a bounded C++20 parsing/state-machine task with separate visible and hidden tests for quoted fields, escaped quotes, empty fields, LF/CRLF records, embedded newlines, malformed quoting, and a final record without a newline.
 
 ## Benchmark specification review (2026-09-11)
+
+- CPP-002 gap incorporated after autonomous model-run review: the original contract did not state the result for a bare `\r` inside a quoted field, despite explicitly rejecting it outside quotes. The contract now makes it quoted field data, preserved as `\r`; an independent hidden regression covers it. CPP-002 version increased from 1 to 2.
+- CPP-002 autonomous review: `lmstudio/qwen/qwen3.6-35b-a3b` used its full 900-second budget while iterating on a substantial parser, but its preserved result failed visible quoted-field handling and hidden CRLF/final-record coverage. `llama-hase/qwen3.8-27b` passed version 1 visible and hidden validation; it then exposed the quoted-bare-`\r` ambiguity and correctly fails only the version 2 hidden regression. Both generated workspaces are retained under `work/`.
 
 - CPP-001 gap incorporated: “whitespace” now explicitly means the characters recognised by C++ `std::isspace`; visible and hidden tests cover tabs and newlines. The formal decimal grammar now covers integer, trailing-decimal-point, leading-decimal-point, and ordinary decimal forms, with hidden malformed-literal tests. Unary operators around parenthesised expressions and signed-zero division are covered. Scientific/exponent notation, locale-specific input, and non-finite literals are explicitly outside scope and are not scored. CPP-001 version increased from 1 to 2.
 - CPP-003 gap incorporated: the cache is formally non-copyable and non-movable, avoiding unspecified ownership transfer and copied internal iterators. Hidden tests enforce those traits, rvalue-key insertion/replacement, and move-only-value replacement. Returned-pointer stability beyond the next non-const operation is explicitly outside scope; no internal iterator API exists. CPP-003 version increased from 1 to 2.
@@ -47,7 +51,7 @@
 
 ## Active
 
-- No active implementation stage. Stage 2 is complete.
+- Stage 3 — Expand the C++ suite incrementally. CPP-002 is complete; stop here before starting another task.
 
 ## Pending
 

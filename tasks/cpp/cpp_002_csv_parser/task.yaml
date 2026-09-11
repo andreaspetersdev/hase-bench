@@ -1,0 +1,8 @@
+{
+  "id": "cpp_002",
+  "title": "CSV parser",
+  "language": "cpp",
+  "standard": "c++20",
+  "difficulty": "medium",
+  "version": 2
+}
