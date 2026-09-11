@@ -6,6 +6,7 @@
 - CPP-001 Expression Evaluator, CPP-003 Generic LRU Cache, and CPP-005 SPSC Ring Buffer canonical tasks, each with visible and separate hidden tests.
 - Stage 1 — Framework skeleton verified end-to-end with real MSVC for CPP-001, CPP-003, and CPP-005.
 - Manual workflow: `validate --all` discovers only metadata-marked direct children of `work/`, supports `--task`, continues after corrupt workspaces, and prints per-run plus aggregate outcomes.
+- Manual preparation supports `--label` for an optional safe model/run suffix; new workspace names use the concise `_man` marker.
 - Benchmark-specification review of CPP-001, CPP-003, and CPP-005 based on real manual model runs; all three task versions are now version 2.
 
 ## Benchmark specification review (2026-09-11)

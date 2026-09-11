@@ -30,6 +30,13 @@ class FrameworkTests(unittest.TestCase):
             root = Path(temporary)
             self.assertNotEqual(prepare_workspace(find_task("cpp_003"), root), prepare_workspace(find_task("cpp_003"), root))
 
+    def test_workspace_label_is_included_in_the_short_manual_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = prepare_workspace(find_task("cpp_001"), Path(temporary), "A3B")
+            self.assertRegex(workspace.name, r"^\d{8}-\d{6}_cpp_001_man_A3B$")
+            with self.assertRaises(ValueError):
+                prepare_workspace(find_task("cpp_001"), Path(temporary), "A3B/model")
+
     def test_child_environment_deduplicates_case_insensitive_names(self) -> None:
         environment = _deduplicate_environment({"PATH": "first", "Path": "second", "HOME": "home"})
         self.assertEqual(environment, {"PATH": "first", "HOME": "home"})

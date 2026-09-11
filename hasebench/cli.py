@@ -17,6 +17,7 @@ def _parser() -> argparse.ArgumentParser:
     info.add_argument("task")
     prepare = commands.add_parser("prepare", help="create a clean manual workspace")
     prepare.add_argument("task")
+    prepare.add_argument("--label", help="optional model or run label included in the workspace name")
     validate = commands.add_parser("validate", help="independently validate one or all workspaces")
     validate_target = validate.add_mutually_exclusive_group(required=True)
     validate_target.add_argument("workspace", nargs="?", type=Path)
@@ -47,7 +48,7 @@ def main() -> int:
                   f"Standard:   {task.standard}\nDifficulty: {task.difficulty}\nVersion:    {task.version}")
             return 0
         if args.command == "prepare":
-            workspace = prepare_workspace(find_task(args.task))
+            workspace = prepare_workspace(find_task(args.task), label=args.label)
             print(f"Workspace:\n{workspace}")
             return 0
         if args.all:

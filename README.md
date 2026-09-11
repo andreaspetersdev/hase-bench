@@ -12,6 +12,7 @@ From the repository root:
 python -m hasebench list
 python -m hasebench info cpp_001
 python -m hasebench prepare cpp_001
+python -m hasebench prepare cpp_001 --label A3B
 ```
 
 Enter the printed workspace, launch OpenCode yourself, and ask it to read `TASK.md`. When finished, validate independently:

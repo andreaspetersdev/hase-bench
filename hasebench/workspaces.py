@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from datetime import datetime
 from dataclasses import dataclass
@@ -26,10 +27,13 @@ class WorkspaceCandidate:
     metadata_error: str | None = None
 
 
-def prepare_workspace(task: Task, work_root: Path | None = None) -> Path:
+def prepare_workspace(task: Task, work_root: Path | None = None, label: str | None = None) -> Path:
     base = work_root or repository_root() / "work"
     base.mkdir(parents=True, exist_ok=True)
-    stem = f"{datetime.now().strftime('%Y%m%d-%H%M%S')}_{task.identifier}_manual"
+    normalized_label = _normalize_label(label)
+    stem = f"{datetime.now().strftime('%Y%m%d-%H%M%S')}_{task.identifier}_man"
+    if normalized_label:
+        stem += f"_{normalized_label}"
     workspace = base / stem
     suffix = 2
     while workspace.exists():
@@ -49,6 +53,14 @@ def prepare_workspace(task: Task, work_root: Path | None = None) -> Path:
         encoding="utf-8",
     )
     return workspace
+
+
+def _normalize_label(label: str | None) -> str | None:
+    if label is None:
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", label):
+        raise ValueError("workspace label must contain only letters, digits, '.', '_', or '-' and begin with a letter or digit")
+    return label
 
 
 def task_for_workspace(workspace: Path) -> str:
