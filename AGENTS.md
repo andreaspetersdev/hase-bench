@@ -312,6 +312,15 @@ tasks/cpp/cpp_001_example/
 
 The agent must not receive `validator/` or `reference/`.
 
+## Task catalogue
+
+`TASKS.md` is the maintained human-readable catalogue of the C++ suite.  It
+must list both implemented and planned tasks, their intended difficulty and
+scope, and the review notes that justify difficult-task requirements.  Update
+it whenever a task is added, removed, reprioritized, or its version/contract
+changes.  Keep it consistent with `CODEX_TASK.md`, task metadata, `TASK.md`,
+and `progress.md`.
+
 ---
 
 # Visible versus hidden tests
@@ -839,9 +848,9 @@ python -m hasebench run cpp_001 --agent opencode --model qwen-test
 
 ## Stage 3 — Initial C++ suite
 
-Implement the 20 C++ benchmark projects defined in `CODEX_TASK.md`.
+Implement the 21 C++ benchmark projects defined in `CODEX_TASK.md`.
 
-Do not necessarily implement all twenty before testing the framework.
+Do not necessarily implement all twenty-one before testing the framework.
 
 Introduce them incrementally.
 
@@ -952,6 +961,6 @@ independently builds and validates it.
 
 Only after this manual pipeline is reliable should autonomous OpenCode execution be implemented.
 
-Create and support `progress.md` file weher you will put all finsihed stages and current one you work on. 
+Create and support `progress.md`, recording all finished stages and the current active stage.
 
 When user ask your to continue, check what stage is active/pending in `progress.md`

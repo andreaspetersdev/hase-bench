@@ -98,11 +98,11 @@ Do not implement all long-term features before these commands work.
 
 # Initial C++ benchmark suite
 
-Design the framework to support the following twenty C++ benchmark tasks.
+Design the framework to support the following twenty-one C++ benchmark tasks.
 
 The suite should deliberately cover substantially different capabilities.
 
-Do not reduce the suite to twenty LeetCode-style functions.
+Do not reduce the suite to twenty-one LeetCode-style functions.
 
 Each task should be a small software project.
 
@@ -264,6 +264,7 @@ concurrent jobs
 exceptions
 shutdown behavior
 no lost work
+destructor draining of accepted work
 ```
 
 Do not make timing assumptions unnecessarily strict.
@@ -302,6 +303,7 @@ Use atomics.
 The task should require correct acquire/release memory ordering, not merely making all atomics sequentially consistent.
 
 Hidden validation should include stress testing with producer and consumer threads and large operation counts.
+It should also verify `Capacity == 1`, failed-pop output preservation, exact object lifetime through pop and destruction, and full publication of a non-trivial move-only payload. A narrow source-contract check should reject mutex locking and require an acquire/release order in the public header. Together these checks make the synchronization requirement objective without depending on arbitrary timing.
 
 Do not require arbitrary MPMC behavior.
 
@@ -346,7 +348,7 @@ invalid-header detection
 round trip
 ```
 
-Avoid unsafe pointer reinterpretation where possible.
+Specify one canonical byte order and exact field widths. Decoding must not read beyond the supplied span, must distinguish malformed headers, impossible lengths, truncation, and checksum failure, and must leave no partially decoded packet exposed on failure. Include payload sizes at zero, boundary, and configured-maximum values. Avoid unsafe pointer reinterpretation where possible.
 
 Hidden tests should inject corrupted and truncated buffers.
 
@@ -370,9 +372,7 @@ Provide a small realistic project with an intermittent or deterministic lifetime
 
 The task description should say only that tests fail or sanitizable behavior is incorrect.
 
-The agent must diagnose and repair the lifetime problem while preserving the external API where possible.
-
-The defect should span at least two source files.
+The defect must cross at least three files and two ownership boundaries: for example, a parser returns views into transient input which a cache and delayed formatter retain. The agent must diagnose and repair the lifetime problem while preserving the external API, copy/move behavior, and zero-copy behavior where ownership is genuinely external. Hidden tests should mix temporaries, reallocation, delayed formatting, and moved owning objects so a local "replace every string_view" patch is not automatically correct.
 
 Category:
 
@@ -395,9 +395,7 @@ Provide a component using multiple mutexes with a reproducible lock-ordering def
 
 The API should represent something realistic, for example transferring values/resources between accounts or containers.
 
-The task is to eliminate the deadlock without serializing the entire system through one global mutex.
-
-Hidden stress tests should exercise opposite-direction concurrent operations.
+The task is to eliminate the deadlock without serializing the entire system through one global mutex. Include self-transfer, insufficient-resource, and exception/validation paths, and require the aggregate balance/resource invariant to hold. Hidden tests should use barriers to deterministically exercise opposite-direction concurrent operations repeatedly, then verify both progress and the invariant. A solution must establish a consistent local locking strategy rather than relying on timeouts or retry sleeps.
 
 Category:
 
@@ -445,7 +443,7 @@ missing keys
 null
 ```
 
-Hidden tests should deeply nest structures.
+Hidden tests should deeply nest structures, distinguish an absent key from a present null, and verify that inputs are not aliased or accidentally mutated by the result.
 
 Category:
 
@@ -474,7 +472,7 @@ cycle detection
 stable/deterministic output
 ```
 
-When a cycle exists, return useful cycle information if specified.
+When a cycle exists, return a closed, useful cycle path if specified. Define lexical tie-breaking so output is deterministic across insertion order and unordered containers. Reject duplicate module definitions and make missing-dependency diagnostics identify both the dependent and the absent name.
 
 Hidden tests should contain:
 
@@ -506,11 +504,13 @@ Provide a small matrix abstraction or fixed API without external libraries.
 
 Ask the agent to implement a numerical least-squares solver for an overdetermined system.
 
-Prefer a numerically reasonable QR-based solution rather than explicitly forming:
+Require a numerically reasonable QR-based solution rather than explicitly forming:
 
 ```text
 (AᵀA)⁻¹Aᵀb
 ```
+
+The contract must define behavior for rank-deficient or dimensionally invalid inputs (for example, a clear failure result), reject NaN/infinite inputs, and state a residual-based accuracy expectation rather than a single exact answer.
 
 Validation should include:
 
@@ -519,9 +519,10 @@ exact systems
 noisy systems
 different rectangular sizes
 near-conditioning issues within reasonable tolerance
+rank-deficient and badly scaled inputs
 ```
 
-Use floating-point tolerance-based hidden validation.
+Use floating-point tolerance-based hidden validation against a trusted reference, including residual-quality checks that make a normal-equations implementation materially less reliable.
 
 Category:
 
@@ -552,7 +553,7 @@ axis-angle conversion
 rotation-matrix conversion
 ```
 
-Hidden tests should verify mathematical invariants rather than only example values.
+Specify zero/near-zero normalization behavior, the quaternion sign ambiguity, and how invalid rotation matrices are rejected or normalized. Hidden tests should verify mathematical invariants rather than only example values.
 
 Examples:
 
@@ -592,9 +593,7 @@ errors by category
 time-window aggregation
 ```
 
-Avoid loading the entire input into memory if TASK.md specifies streaming behavior.
-
-Tests should exercise malformed records and boundary timestamps.
+Require a documented bounded-memory streaming strategy for aggregate metrics; if exact percentiles require retained samples, specify an explicit bounded window instead. Define malformed-record accounting, timestamp inclusivity at window boundaries, and merge/order behavior for equal timestamps. Tests should exercise malformed records, boundary timestamps, large streams, and numeric stability for latency aggregation.
 
 Category:
 
@@ -634,7 +633,7 @@ chunked encoding
 full RFC implementation
 ```
 
-The important difficulty is incremental parsing: data may arrive split at arbitrary byte boundaries.
+The important difficulty is incremental parsing: data may arrive split at arbitrary byte boundaries, including within CRLF, header names, and the body. Specify a bounded header/body limit, duplicate `Content-Length` policy, case-insensitive lookup while preserving values, pipelined remainder handling, and a clear error state that cannot be resumed accidentally after malformed input. Hidden tests should systematically replay the same requests at every possible split point.
 
 Category:
 
@@ -669,7 +668,7 @@ exception policy
 
 Avoid requiring macros.
 
-A strong solution may involve templates, type erasure, or `std::type_index`.
+A strong solution may involve templates, type erasure, or `std::type_index`. Define dispatch semantics for callbacks that unsubscribe themselves or another subscriber, subscribe during dispatch, and throw exceptions. Subscription tokens must be safe after dispatcher moves and harmless when reset repeatedly. Hidden tests should make these re-entrant cases deterministic and verify that one event type cannot reach subscribers of another.
 
 Category:
 
@@ -703,7 +702,7 @@ resource reuse
 destruction order
 ```
 
-There should initially be at least one ownership bug or incomplete implementation.
+There should initially be at least one ownership bug or incomplete implementation. Require handles to remain valid through pool moves only when the stated API permits it, make moved-from handles inert, and define what happens when a handle is returned after a pool has begun destruction. Hidden tests should combine exception paths, nested handle scopes, move assignment between live handles, and resource reuse without accepting double return.
 
 Category:
 
@@ -730,7 +729,7 @@ The agent may refactor while preserving the public interface and existing behavi
 
 Validation focuses on behavior, not a predetermined architecture.
 
-The project should be large enough that the model has to understand several files before editing.
+The project should be large enough that the model has to understand several files before editing. The requested feature should require a new behavioral axis that otherwise causes a combinatorial inheritance expansion, while old serialized/configured forms and public factories remain compatible. Hidden tests should instantiate legacy and new combinations, exercise error paths, and check behavior rather than a prescribed refactoring technique.
 
 Category:
 
@@ -769,7 +768,7 @@ borders
 overflow/intermediate precision
 ```
 
-Hidden tests compare against a trusted scalar reference implementation.
+Require aliasing policy, output-dimension rules, and deterministic border mode. Hidden tests compare against a trusted scalar reference implementation across odd strides, in-place/disallowed aliasing cases, tiny images, and large intermediate values.
 
 A later version may include a performance target, but correctness comes first.
 
@@ -806,9 +805,7 @@ no corruption
 backpressure/drop policy as specified
 ```
 
-The starter implementation should contain at least one concurrency or shutdown defect.
-
-Hidden tests should include bursts and shutdown while data remains queued.
+The starter implementation should contain at least one concurrency or shutdown defect. Specify a deterministic backpressure/drop policy, a monotonic sequence contract, and how writer failure is reported without silently losing accepted messages. Hidden tests should use controlled producer/writer gates for bursts, full queues, writer failure, and shutdown while data remains queued; they must verify exactly-once persistence of all accepted messages and clean thread teardown.
 
 Category:
 
@@ -839,7 +836,7 @@ statistics
 serialization
 ```
 
-The project should initially compile but contain several logical defects.
+The project should initially compile but contain several interacting logical defects across at least four components, including one ownership or lifetime defect and one shutdown/error-propagation defect. A requested feature should cross parser, configuration, queue, and statistics boundaries rather than be solvable in one file.
 
 TASK.md should describe observed incorrect behavior and requested feature changes without pointing directly to the defects.
 
@@ -854,7 +851,7 @@ modify multiple components
 re-run tests
 ```
 
-Use visible tests for basic behavior and hidden tests for integration behavior.
+Use visible tests for basic behavior and hidden tests for integration behavior, failure rollback, repeated lifecycle operations, and compatibility with a small legacy input corpus. The validator should report independent component failures where practical so results distinguish superficial fixes from real repository-level understanding.
 
 This task should intentionally distinguish stronger local coding models from weaker ones.
 
@@ -866,6 +863,67 @@ debugging
 architecture
 repository comprehension
 multi-step reasoning
+```
+
+Difficulty:
+
+`expert`
+
+---
+
+## CPP-021 — SIMD PCA / Covariance Kernel
+
+Provide a small C++20 numerical component that accepts row-major floating-point
+observations with an explicit row stride and computes:
+
+```text
+per-feature mean
+centered covariance matrix
+the leading K principal components
+projection of an observation onto those components
+```
+
+Keep the feature dimension deliberately bounded so a deterministic symmetric
+Jacobi eigensolver is practical without external numerical libraries. Define
+the behavior for zero observations, invalid stride/dimensions, non-finite
+values, zero-variance features, repeated eigenvalues, component ordering, and
+eigenvector sign. Validation must compare covariance, eigenvalue ordering, and
+projection/reconstruction quality to a trusted scalar reference within stated
+tolerances; it must not require one arbitrary basis within a degenerate
+eigenspace.
+
+The project must include both a scalar implementation and an optional AVX2
+acceleration path for the center/covariance accumulation. Runtime CPU-feature
+detection selects AVX2 only when available and otherwise selects scalar. The
+public API must report the selected backend so validation can exercise and
+compare both paths. The scalar path remains required and correct on every
+supported machine; compilation must not globally require AVX2. SIMD and scalar
+results are compared with numerical tolerances, not bitwise equality.
+
+Hidden tests should include:
+
+```text
+non-contiguous row stride
+small and rectangular datasets
+badly scaled features
+zero-variance and repeated-eigenvalue data
+non-finite input rejection
+forced scalar and supported AVX2 dispatch
+projection/reconstruction residual checks
+```
+
+Do not impose a raw throughput threshold in the first version. Record optional
+performance telemetry later, after correctness and portable dispatch are
+stable.
+
+Category:
+
+```text
+numerical methods
+linear algebra
+SIMD
+CPU feature dispatch
+memory layout
 ```
 
 Difficulty:
@@ -1048,8 +1106,9 @@ CPP-002             PASS     PASS
 CPP-003             FAIL     PASS
 ...
 CPP-020             FAIL     FAIL
+CPP-021             FAIL     FAIL
 
-Solved              11/20    15/20
+Solved              11/21    15/21
 Build failures       3        1
 Hidden failures      6        4
 ```
@@ -1186,7 +1245,7 @@ This extension must not influence the first benchmark implementation.
 
 # What to implement now
 
-Start with the repository infrastructure and only a small subset of the twenty tasks.
+Start with the repository infrastructure and only a small subset of the twenty-one tasks.
 
 Recommended implementation order:
 
@@ -1204,7 +1263,7 @@ generic data structure
 concurrent systems programming
 ```
 
-Do not implement all twenty before validating the framework design.
+Do not implement all twenty-one before validating the framework design.
 
 Once these three work manually, add autonomous OpenCode execution.
 
@@ -1272,4 +1331,3 @@ objective independent validation
 future autonomous mode
 future C++/Rust/general/visual extensibility
 ```
-

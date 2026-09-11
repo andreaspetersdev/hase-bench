@@ -18,6 +18,11 @@
 - Autonomous OpenCode runs accept an optional `--variant` and pass it through as OpenCode's model reasoning-effort `--variant` (for example, `medium` or `xhigh`), while retaining it in metadata and Markdown reports.
 - Stage 3 started: CPP-002 CSV parser added as version 2. It is a bounded C++20 parsing/state-machine task with separate visible and hidden tests for quoted fields, escaped quotes, empty fields, LF/CRLF records, embedded newlines, malformed quoting, and a final record without a newline.
 - CPP-004 Thread Pool added as version 2. It is a hard C++20 concurrency/template task with visible and independent hidden tests for futures, exceptions, draining shutdown, fixed workers, concurrent submissions, move-only callables/arguments, and lvalue callables/arguments.
+- CPP-004 strengthened to version 3: independent hidden validation now confirms that destruction, as well as explicit shutdown, drains all accepted work. This is a small contract-backed hardening rather than a new shutdown-concurrency requirement.
+- CPP-005 strengthened to version 3 after suite review. Its hidden validation now covers `Capacity == 1`, failed-pop output preservation, move-only object lifetime through pop/wrap/destruction, and deterministic producer/consumer transfer of a structured move-only payload with sequence and integrity fields. A narrow source-contract test also enforces its explicit no-standard-mutex and acquire/release requirements. The contract documents that destruction must not overlap producer/consumer use.
+- Added `TASKS.md`, the maintained task catalogue for all implemented and planned C++ tasks. It records intended scope, difficulty, and hard/very-hard construction policy; `AGENTS.md` now requires it to be kept in sync with task/version changes.
+- Reviewed planned CPP-006 through CPP-020 and deepened their specifications in `CODEX_TASK.md` and `TASKS.md`. Hard tasks now have concrete re-entrancy, ownership, multi-file, deterministic-concurrency, or incremental-state requirements; very-hard tasks now require substantive numerical, synchronization, or architecture invariants with objective validation. This is specification work only: no future task project was created or relabeled.
+- Added planned CPP-021 SIMD PCA / covariance kernel as an expert numerical-systems benchmark. It separates scalar correctness from optional runtime-dispatched AVX2 acceleration, requires portable fallback behavior, and defines objective tolerance-based PCA, dispatch, and residual validation. No CPP-021 starter project has been created yet.
 
 ## Benchmark specification review (2026-09-11)
 
@@ -57,7 +62,7 @@
 
 ## Active
 
-- Stage 3 — Expand the C++ suite incrementally. CPP-004 is complete; stop here before starting another task.
+- Stage 3 — Expand the C++ suite incrementally. CPP-005 version 3 hardening is complete and reference-quality validation passes; stop here before adding CPP-006.
 
 ## Pending
 

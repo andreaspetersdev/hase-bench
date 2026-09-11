@@ -83,6 +83,7 @@ Each autonomous run creates a new `_aut_opencode` workspace, runs OpenCode with 
 After every autonomous task, the console prints its workspace, model, build, visible-test, hidden-test, and final result. It also prints OpenCode's maximum observed context use, generated-token rate, estimated model time, agent elapsed time, and full benchmark elapsed time. The model time is an estimate derived from OpenCode step timing with recorded tool time removed; it is the suitable initial value for an electricity-time estimate, while full time includes workspace preparation and authoritative validation. If an OpenCode version does not emit JSON telemetry, those fields are explicitly shown as unavailable. Every command also writes a Markdown summary table under `results/`; `run --all` produces one aggregate table for the batch, while a single-task run produces a one-row table. These generated reports are ignored by Git.
 
 Currently available tasks are CPP-001 (expression evaluator), CPP-002 (CSV parser), CPP-003 (generic LRU cache), CPP-004 (thread pool), and CPP-005 (SPSC ring buffer). See [progress.md](progress.md) for the current stage.
+See [TASKS.md](TASKS.md) for the maintained implemented/planned C++ task catalogue and difficulty rationale.
 
 Prompt example:
 ```markdown

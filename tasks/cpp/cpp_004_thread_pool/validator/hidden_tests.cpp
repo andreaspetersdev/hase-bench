@@ -103,4 +103,18 @@ int main() {
     std::cerr << "shutdown discarded accepted work\n";
     return 6;
   }
+
+  std::atomic<int> destructor_drained = 0;
+  {
+    hase::ThreadPool destructor_pool(2);
+    for (int i = 0; i < 80; ++i) {
+      (void)destructor_pool.submit([&] {
+        destructor_drained.fetch_add(1, std::memory_order_relaxed);
+      });
+    }
+  }
+  if (destructor_drained != 80) {
+    std::cerr << "destruction discarded accepted work\n";
+    return 8;
+  }
 }
