@@ -21,5 +21,8 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["hasebench*"]
 
+[tool.setuptools.package-data]
+hasebench = ["*.hpp"]
+
 [tool.hasebench]
 python-version = "3.12.4"

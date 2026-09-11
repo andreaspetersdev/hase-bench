@@ -73,6 +73,7 @@
 ## Active
 
 - Stage 3 — Expand the C++ suite incrementally. CPP-007 version 1 is complete: its reference implementation and framework tests pass, both approved model runs were reviewed, and the A3B copy-assignment failure was correctly classified. Stop here before adding CPP-008.
+- C++ validation now force-includes a packaged MSVC runtime policy for Debug builds. CRT assertions and Windows crash reporting are redirected to captured stderr/non-interactive process termination, preventing Abort/Retry/Ignore dialogs from blocking validation. A deliberate assertion smoke test produced a normal CTest failure with no popup.
 
 ## Pending
 

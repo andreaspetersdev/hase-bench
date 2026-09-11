@@ -47,6 +47,11 @@ Use `--verbose` to print captured CMake and CTest diagnostics. Preparation copie
 
 `validate --all` scans only direct children of `work/` containing Hase Bench workspace metadata. It continues past malformed workspaces and prints a concise per-run and aggregate result summary, including task complexity (`E`, `M`, `H`, or `VH`).
 
+Debug C++ validation keeps assertions enabled but configures the MSVC CRT and
+Windows error handling for non-interactive execution. An assertion is reported
+in the captured CTest output and the test process exits; validation never waits
+for an Abort/Retry/Ignore dialog.
+
 ## Autonomous OpenCode runs
 
 Run one task in a fresh autonomous workspace:

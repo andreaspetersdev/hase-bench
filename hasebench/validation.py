@@ -73,9 +73,29 @@ def _deduplicate_environment(source: Mapping[str, str]) -> dict[str, str]:
     return environment
 
 
+def _cmake_debug_flags() -> str | None:
+    """Force benchmark executables to report MSVC assertions non-interactively."""
+    if os.name != "nt":
+        return None
+    header = (Path(__file__).with_name("msvc_noninteractive_assert.hpp")).resolve()
+    # CMake forwards this value to cl.exe.  Quote the path so installations in
+    # directories containing spaces remain valid.
+    return f'/FI"{header}"'
+
+
+def _configure_arguments(source: Path, build_dir: Path, *, extra: list[str] | None = None) -> list[str]:
+    arguments = ["cmake", "-S", str(source), "-B", str(build_dir)]
+    flags = _cmake_debug_flags()
+    if flags is not None:
+        arguments.append(f"-DCMAKE_CXX_FLAGS_DEBUG={flags}")
+    if extra:
+        arguments.extend(extra)
+    return arguments
+
+
 def validate_cpp(workspace: Path, task: Task) -> ValidationResult:
     build_dir = workspace / "build" / "hasebench"
-    configure = _run(["cmake", "-S", str(workspace), "-B", str(build_dir)], workspace, 120)
+    configure = _run(_configure_arguments(workspace, build_dir), workspace, 120)
     if configure.returncode != 0:
         return ValidationResult(task.identifier, configure, None, None, "BUILD_CONFIGURATION_FAILURE")
     build = _run(["cmake", "--build", str(build_dir), "--config", "Debug"], workspace, 120)
@@ -84,8 +104,8 @@ def validate_cpp(workspace: Path, task: Task) -> ValidationResult:
     visible = _run(["ctest", "--test-dir", str(build_dir), "-C", "Debug", "--output-on-failure"], workspace, 60)
     validator_dir = task.root / "validator"
     hidden_build = workspace / "build" / "hasebench-hidden"
-    hidden_configure = _run(["cmake", "-S", str(validator_dir), "-B", str(hidden_build),
-                             f"-DSTARTER_DIR={workspace}"], workspace, 120)
+    hidden_configure = _run(_configure_arguments(validator_dir, hidden_build,
+                                                 extra=[f"-DSTARTER_DIR={workspace}"]), workspace, 120)
     if hidden_configure.returncode != 0:
         return ValidationResult(task.identifier, hidden_configure, visible, None, "BUILD_CONFIGURATION_FAILURE")
     hidden_build_result = _run(["cmake", "--build", str(hidden_build), "--config", "Debug"], workspace, 120)

@@ -19,7 +19,7 @@ from hasebench.cli import _compact_complexity, _print_result, _print_run_result,
 from hasebench.runs import AGENT_LOG, RUN_METADATA, AutonomousRunResult, run_autonomous
 from hasebench.reports import RunSummaryRow, write_markdown_summary
 from hasebench.tasks import discover_tasks, find_task
-from hasebench.validation import CommandResult, ValidationResult, _deduplicate_environment
+from hasebench.validation import CommandResult, ValidationResult, _cmake_debug_flags, _deduplicate_environment
 from hasebench.workspaces import (
     WORKSPACE_METADATA,
     WorkspaceCandidate,
@@ -66,6 +66,15 @@ class FrameworkTests(unittest.TestCase):
     def test_child_environment_deduplicates_case_insensitive_names(self) -> None:
         environment = _deduplicate_environment({"PATH": "first", "Path": "second", "HOME": "home"})
         self.assertEqual(environment, {"PATH": "first", "HOME": "home"})
+
+    def test_msvc_assertion_flags_are_platform_specific(self) -> None:
+        flags = _cmake_debug_flags()
+        if __import__("os").name == "nt":
+            self.assertIn("/FI", flags)
+            self.assertIn("msvc_noninteractive_assert.hpp", flags)
+            self.assertTrue(flags.endswith("msvc_noninteractive_assert.hpp\""))
+        else:
+            self.assertIsNone(flags)
 
     def test_workspace_discovery_requires_metadata_and_retains_corrupt_candidates(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
