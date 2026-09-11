@@ -40,16 +40,19 @@ def run_autonomous(
     backend: str,
     timeout_seconds: int,
     label: str | None = None,
+    variant: str | None = None,
 ) -> AutonomousRunResult:
     started = time.monotonic()
     workspace = prepare_workspace(task, mode="aut_opencode", label=label)
     agent = runner.run(
-        AgentRunRequest(workspace, AUTONOMOUS_INSTRUCTION, model_configuration, timeout_seconds, workspace / AGENT_LOG)
+        AgentRunRequest(
+            workspace, AUTONOMOUS_INSTRUCTION, model_configuration, timeout_seconds, workspace / AGENT_LOG, variant
+        )
     )
     validation = validate_cpp(workspace, task)
     outcome = agent.outcome if agent.outcome != "SUCCESS" else validation.outcome
     result = AutonomousRunResult(workspace, agent, validation, outcome, time.monotonic() - started)
-    _write_metadata(result, task, model_configuration, model_name, backend, timeout_seconds)
+    _write_metadata(result, task, model_configuration, model_name, backend, timeout_seconds, variant)
     return result
 
 
@@ -60,6 +63,7 @@ def _write_metadata(
     model_name: str,
     backend: str,
     timeout_seconds: int,
+    variant: str | None,
 ) -> None:
     metadata = {
         "schema_version": 1,
@@ -68,7 +72,7 @@ def _write_metadata(
         "mode": "autonomous",
         "task": {"id": task.identifier, "version": task.version, "language": task.language},
         "agent": {"name": "opencode", **asdict(result.agent)},
-        "model": {"configuration": model_configuration, "name": model_name, "backend": backend},
+        "model": {"configuration": model_configuration, "name": model_name, "backend": backend, "variant": variant},
         "agent_timeout_seconds": timeout_seconds,
         "timing": {
             "agent_duration_seconds": result.agent.duration_seconds,

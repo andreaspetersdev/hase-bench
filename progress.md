@@ -15,6 +15,7 @@
 - Reproducible development environment: Python 3.12.4 is required exactly; `tools/setup-env.ps1` creates/reconciles the ignored repository-local `.venv`, supports a clean `-Recreate`, installs exact packaging/test versions, installs the project editable, and runs CLI/pytest sanity checks.
 - Autonomous run reporting: each task now prints the same concise build/visible/hidden/final status layout as validation, and every single or batch run writes a Git-ignored Markdown table under `results/`.
 - Autonomous telemetry: OpenCode JSON event streams now provide maximum observed context tokens, generated tokens, estimated model time (step time less recorded tool time), and generated-token rate. Console, Markdown reports, and run metadata also record agent elapsed time and full benchmark elapsed time. The default autonomous timeout is now 1,800 seconds (30 minutes).
+- Autonomous OpenCode runs accept an optional `--variant` and pass it through as OpenCode's model reasoning-effort `--variant` (for example, `medium` or `xhigh`), while retaining it in metadata and Markdown reports.
 - Stage 3 started: CPP-002 CSV parser added as version 2. It is a bounded C++20 parsing/state-machine task with separate visible and hidden tests for quoted fields, escaped quotes, empty fields, LF/CRLF records, embedded newlines, malformed quoting, and a final record without a newline.
 
 ## Benchmark specification review (2026-09-11)

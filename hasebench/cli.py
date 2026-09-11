@@ -30,6 +30,7 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--model", required=True, help="OpenCode model or configuration selector")
     run.add_argument("--model-name", help="model name retained in run metadata (defaults to --model)")
     run.add_argument("--backend", default="opencode-managed", help="backend retained in run metadata")
+    run.add_argument("--variant", help="OpenCode reasoning-effort variant, for example medium or xhigh")
     run.add_argument("--timeout", type=_positive_int, default=1800, help="agent timeout in seconds (default: 1800)")
     run.add_argument("--label", help="optional safe label included in each workspace name")
     run.add_argument("--verbose", action="store_true", help="print captured agent and validation diagnostics")
@@ -99,11 +100,12 @@ def _run_one(task: object, args: argparse.Namespace, write_summary: bool = True)
         args.backend,
         args.timeout,
         args.label,
+        args.variant,
     )
-    _print_run_result(result, task.difficulty, args.model, args.verbose)
+    _print_run_result(result, task.difficulty, args.model, args.variant, args.verbose)
     row = summary_row(result, _compact_complexity(task.difficulty))
     if write_summary:
-        path = write_markdown_summary([row], args.agent, args.model, args.backend)
+        path = write_markdown_summary([row], args.agent, args.model, args.backend, args.variant)
         print(f"Summary:   {path}")
     return (0 if result.outcome == "SUCCESS" else 1), row
 
@@ -127,15 +129,18 @@ def _run_all(task_filter: str | None, args: argparse.Namespace) -> int:
         except (ValueError, OSError) as error:
             failures += 1
             print(f"{task.identifier}: {_colored_outcome('RUN_ERROR')}; {error}")
-    path = write_markdown_summary(rows, args.agent, args.model, args.backend)
+    path = write_markdown_summary(rows, args.agent, args.model, args.backend, args.variant)
     print(f"\nCompleted: {len(selected)}\nPASS: {len(selected) - failures}\nFAIL: {failures}\nSummary:   {path}")
     return 0 if failures == 0 else 1
 
 
-def _print_run_result(result: AutonomousRunResult, difficulty: str, model: str, verbose: bool) -> None:
+def _print_run_result(
+    result: AutonomousRunResult, difficulty: str, model: str, variant: str | None, verbose: bool
+) -> None:
     validation = result.validation
     telemetry = result.agent.telemetry
-    print(f"Workspace:  {result.workspace}\nModel:      {model}\n"
+    variant_line = f"\nVariant:    {variant}" if variant else ""
+    print(f"Workspace:  {result.workspace}\nModel:      {model}{variant_line}\n"
           f"Agent:      {_colored_outcome(result.agent.outcome)} ({_format_duration(result.agent.duration_seconds)})\n"
           f"Context:    {_format_tokens(telemetry.max_context_tokens)}\n"
           f"Generation: {_format_generation(telemetry.generated_tokens, telemetry.generation_tokens_per_second)}\n"

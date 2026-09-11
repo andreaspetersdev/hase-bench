@@ -39,7 +39,9 @@ def summary_row(result: AutonomousRunResult, complexity: str) -> RunSummaryRow:
     )
 
 
-def write_markdown_summary(rows: list[RunSummaryRow], agent: str, model: str, backend: str) -> Path:
+def write_markdown_summary(
+    rows: list[RunSummaryRow], agent: str, model: str, backend: str, variant: str | None = None
+) -> Path:
     root = repository_root() / "results"
     root.mkdir(exist_ok=True)
     path = root / f"{datetime.now().strftime('%Y%m%d-%H%M%S')}_autonomous_summary.md"
@@ -49,6 +51,7 @@ def write_markdown_summary(rows: list[RunSummaryRow], agent: str, model: str, ba
         f"- Agent: `{agent}`",
         f"- Model/configuration: `{model}`",
         f"- Backend: `{backend}`",
+        f"- Variant: `{variant or 'default'}`",
         "",
         "| Task | Complexity | Agent | Build | Visible | Hidden | Context | Generation | Model time | Agent time | Full time | Result | Workspace |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",

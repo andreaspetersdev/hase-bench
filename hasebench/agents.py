@@ -18,6 +18,7 @@ class AgentRunRequest:
     model: str
     timeout_seconds: int
     log_path: Path
+    variant: str | None = None
 
 
 @dataclass(frozen=True)
@@ -73,11 +74,15 @@ class OpenCodeAgentRunner:
             str(request.workspace),
             "--model",
             request.model,
+        ]
+        if request.variant:
+            arguments.extend(["--variant", request.variant])
+        arguments.extend([
             "--format",
             "json",
             "--auto",
             request.instruction,
-        ]
+        ])
         environment = _agent_environment(request.workspace)
         try:
             completed = subprocess.run(

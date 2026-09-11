@@ -53,6 +53,7 @@ Run one task in a fresh autonomous workspace:
 
 ```powershell
 python -m hasebench run cpp_001 --agent opencode --model hase/qwen27b-q4 --label 27BQ4
+python -m hasebench run cpp_001 --agent opencode --model llama-hase/qwen3.8-27b --backend llama.cpp --variant xhigh --label 27B-xhigh
 ```
 
 Run every available task, or limit an all-task run to a task ID:
@@ -62,7 +63,20 @@ python -m hasebench run --all --agent opencode --model hase/qwen27b-q4 --label 2
 python -m hasebench run --all --task cpp_003 --agent opencode --model hase/qwen27b-q4
 ```
 
-`--model` is passed unchanged to OpenCode's `--model` option. Configure the provider, endpoint, credentials, and any model alias in OpenCode; the benchmark does not hard-code hase connection settings. Use `--model-name` and `--backend` when the selector alone is not sufficiently descriptive for later comparison. The default agent timeout is 1,800 seconds (30 minutes); override it with `--timeout` for a particular run.
+| Parameter | Required | Purpose | Example |
+| --- | --- | --- | --- |
+| `TASK` or `--all` | Yes | Run one task, or every available task. | `cpp_001`, `--all` |
+| `--task` | With `--all`, optional | Restrict a batch to one task ID. | `--task cpp_003` |
+| `--agent` | Yes | Coding agent to launch. | `--agent opencode` |
+| `--model` | Yes | OpenCode provider/model selector, passed unchanged to OpenCode. | `--model llama-hase/qwen3.8-27b` |
+| `--variant` | No | Provider-specific reasoning effort, passed as OpenCode's `--variant`. | `--variant medium`, `--variant xhigh` |
+| `--model-name` | No | Descriptive model name retained in metadata; defaults to `--model`. | `--model-name Qwen-3.8-27B` |
+| `--backend` | No | Backend label retained in metadata and reports. | `--backend llama.cpp` |
+| `--label` | No | Safe suffix for each fresh workspace name. | `--label 27B-xhigh` |
+| `--timeout` | No | Agent time limit in seconds; default is 1,800 (30 minutes). | `--timeout 1800` |
+| `--verbose` | No | Print OpenCode, compiler, and test diagnostics. | `--verbose` |
+
+Configure the provider, endpoint, credentials, and any model alias in OpenCode; the benchmark does not hard-code hase connection settings. The selected variant, model/backend labels, and timing are retained in run metadata and reports.
 
 Each autonomous run creates a new `_aut_opencode` workspace, runs OpenCode with non-interactive JSON output and permission auto-approval inside that workspace, then validates it with the same visible and hidden CMake validators as manual runs. `TEMP` and `TMP` are redirected into the workspace so ordinary agent-created temporary files are preserved there too. The workspace is always preserved. It contains `hasebench-agent.log` and `hasebench-run.json`, recording the selected configuration, model/backend labels, agent exit status/timing, validation commands/results, and final classification. Use `--verbose` to print captured agent and validation diagnostics.
 

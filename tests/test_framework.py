@@ -110,13 +110,13 @@ class FrameworkTests(unittest.TestCase):
     def test_opencode_runner_uses_non_interactive_workspace_command(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
-            request = AgentRunRequest(workspace, "solve it", "hase/qwen", 30, workspace / "agent.log")
+            request = AgentRunRequest(workspace, "solve it", "hase/qwen", 30, workspace / "agent.log", "xhigh")
             completed = type("Completed", (), {"returncode": 0, "stdout": '{"type":"text"}\n'})()
             with patch("hasebench.agents.subprocess.run", return_value=completed) as run:
                 result = OpenCodeAgentRunner("opencode-test").run(request)
             self.assertEqual(result.outcome, "SUCCESS")
             self.assertEqual(run.call_args.args[0], [
-                "opencode-test", "run", "--dir", str(workspace), "--model", "hase/qwen",
+                "opencode-test", "run", "--dir", str(workspace), "--model", "hase/qwen", "--variant", "xhigh",
                 "--format", "json", "--auto", "solve it",
             ])
             self.assertEqual(run.call_args.kwargs["env"]["TEMP"], str(workspace / ".hasebench-tmp"))
@@ -167,7 +167,7 @@ class FrameworkTests(unittest.TestCase):
             with patch("hasebench.runs.prepare_workspace", return_value=workspace), \
                  patch("hasebench.runs.validate_cpp", return_value=validation):
                 result = run_autonomous(
-                    find_task("cpp_001"), FakeRunner(), "hase/qwen", "Qwen 27B", "llama.cpp", 900, "A3B"
+                    find_task("cpp_001"), FakeRunner(), "hase/qwen", "Qwen 27B", "llama.cpp", 900, "A3B", "xhigh"
                 )
             metadata = (workspace / RUN_METADATA).read_text(encoding="utf-8")
             self.assertEqual(result.outcome, "SUCCESS")
@@ -175,11 +175,14 @@ class FrameworkTests(unittest.TestCase):
             self.assertIn('"mode": "autonomous"', metadata)
             self.assertIn('"configuration": "hase/qwen"', metadata)
             self.assertIn('"backend": "llama.cpp"', metadata)
+            self.assertIn('"variant": "xhigh"', metadata)
             self.assertIn('"total_duration_seconds"', metadata)
             self.assertIn('"outcome": "SUCCESS"', metadata)
 
     def test_run_all_uses_each_discovered_task_and_continues_after_failure(self) -> None:
-        arguments = type("Arguments", (), {"task_filter": None, "agent": "opencode", "model": "test", "backend": "test"})()
+        arguments = type("Arguments", (), {
+            "task_filter": None, "agent": "opencode", "model": "test", "backend": "test", "variant": None,
+        })()
         row = object()
         with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row), (0, row), (0, row)]) as run_one, \
              patch("hasebench.cli.write_markdown_summary"), redirect_stdout(StringIO()) as output:
@@ -209,7 +212,7 @@ class FrameworkTests(unittest.TestCase):
         )
         output = StringIO()
         with redirect_stdout(output):
-            _print_run_result(result, "medium", "hase/qwen", False)
+            _print_run_result(result, "medium", "hase/qwen", None, False)
         self.assertIn("Build:      PASS", output.getvalue())
         self.assertIn("Visible:    PASS", output.getvalue())
         self.assertIn("Hidden:     PASS", output.getvalue())
