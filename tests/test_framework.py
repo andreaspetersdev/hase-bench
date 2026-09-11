@@ -118,6 +118,8 @@ class FrameworkTests(unittest.TestCase):
                 "--format", "json", "--auto", "solve it",
             ])
             self.assertEqual(run.call_args.kwargs["env"]["TEMP"], str(workspace / ".hasebench-tmp"))
+            self.assertEqual(run.call_args.kwargs["encoding"], "utf-8")
+            self.assertEqual(run.call_args.kwargs["errors"], "replace")
             self.assertEqual(request.log_path.read_text(encoding="utf-8"), '{"type":"text"}\n')
 
     def test_agent_environment_contains_workspace_temp_directory(self) -> None:

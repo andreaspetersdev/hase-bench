@@ -64,12 +64,14 @@ class OpenCodeAgentRunner:
                 cwd=request.workspace,
                 env=environment,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 timeout=request.timeout_seconds,
                 check=False,
             )
-            output = completed.stdout
+            output = completed.stdout or ""
             outcome = "SUCCESS" if completed.returncode == 0 else "AGENT_NONZERO_EXIT"
             result = AgentRunResult(
                 started_at, _timestamp(), time.monotonic() - started, completed.returncode, output, outcome
