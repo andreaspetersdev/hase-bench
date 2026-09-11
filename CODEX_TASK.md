@@ -395,7 +395,7 @@ Provide a component using multiple mutexes with a reproducible lock-ordering def
 
 The API should represent something realistic, for example transferring values/resources between accounts or containers.
 
-The task is to eliminate the deadlock without serializing the entire system through one global mutex. Include self-transfer, insufficient-resource, and exception/validation paths, and require the aggregate balance/resource invariant to hold. Hidden tests should use barriers to deterministically exercise opposite-direction concurrent operations repeatedly, then verify both progress and the invariant. A solution must establish a consistent local locking strategy rather than relying on timeouts or retry sleeps.
+The task is to eliminate the deadlock without serializing the entire system through one global mutex. Include self-transfer, insufficient-resource, and exception/validation paths, and require the aggregate balance/resource invariant to hold. A throwing post-lock callback may overlap a successful transfer sharing one account; exception handling must not restore stale unlocked state over that successful change. Hidden tests should use barriers to deterministically exercise opposite-direction concurrent operations repeatedly, then verify both progress and the invariant. They should also gate the overlapping exception path and verify that an unrelated account pair continues to make progress. A solution must establish a consistent local locking strategy rather than relying on timeouts or retry sleeps.
 
 Category:
 

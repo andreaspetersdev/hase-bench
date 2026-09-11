@@ -17,12 +17,12 @@ version changes.
 | CPP-005 | SPSC ring buffer | Very hard | 3 | Lock-free single-producer/single-consumer queue with exact capacity, `Capacity == 1`, wrap-around, move-only/raw-storage lifetime correctness, failed-pop preservation, and acquire/release payload publication. The hidden suite uses a deterministic structured-payload stress test plus a narrow source-contract check for the explicit no-mutex/non-`seq_cst`-only requirement. |
 | CPP-006 | Binary serialization | Medium-hard | 2 | Exact fixed big-endian packet encoding with bounded payloads, FNV-1a integrity checking, and non-overlapping invalid-header, impossible-length, truncation, and corruption classifications, including explicit partial-magic precedence. |
 | CPP-007 | Template lifetime repair | Hard | 1 | Multi-file diagnosis of stale `string_view` state across parser, owning value, cache, and delayed rendering boundaries. Owning templates must have normal value semantics; the distinct externally-backed `TemplateView` must preserve its documented zero-copy semantics. |
+| CPP-008 | Deadlock-free account transfers | Hard | 2 | Multi-account transfer repair: local deadlock-free locking under opposing transfers, self/amount/funds result precedence, and exception-safe aggregate-balance invariants even when a throwing transfer overlaps a successful transfer on one account. Hidden validation also proves unrelated account pairs are not globally serialised. |
 
 ## Planned tasks
 
 | ID | Title | Difficulty | Intended benchmark scope |
 | --- | --- | --- | --- |
-| CPP-008 | Existing bug: deadlock | Hard | Barrier-driven opposing transfers, self/insufficient-resource/error paths, aggregate-balance invariants, and a real local lock-order strategy rather than global locking or sleep retries. |
 | CPP-009 | JSON-like configuration merge | Medium | Precise recursive `variant` merge semantics for objects, arrays, scalar/type replacement, absent versus null, deeply nested values, and non-aliasing inputs. |
 | CPP-010 | Graph dependency resolver | Medium-hard | Deterministic lexically tie-broken topological resolution, duplicate/missing diagnostics, and closed useful cycle paths across deep and disconnected graphs. |
 | CPP-011 | Matrix / least squares | Very hard | QR-based solver with dimension/rank/non-finite policy, residual-quality validation, rectangular/noisy/badly-scaled systems, and tests that expose fragile normal equations. |

@@ -25,6 +25,13 @@
 - Added planned CPP-021 SIMD PCA / covariance kernel as an expert numerical-systems benchmark. It separates scalar correctness from optional runtime-dispatched AVX2 acceleration, requires portable fallback behavior, and defines objective tolerance-based PCA, dispatch, and residual validation. No CPP-021 starter project has been created yet.
 - CPP-006 Binary Serialization added as version 2. It is a C++20 medium-hard fixed-format packet task: exact big-endian byte layout, bounded payloads, FNV-1a integrity verification, and a result API that distinguishes invalid headers, impossible lengths, truncation, and checksum corruption without exposing partial packets. Version 2 formalizes partial-magic classification: an empty or matching prefix is truncated, while a mismatch is an invalid header.
 - CPP-007 Template lifetime repair added as version 1. It is a hard C++20 multi-file debugging task with an owning `CompiledTemplate`, an explicitly borrowing zero-copy `TemplateView`, and a cache/formatter ownership boundary. Visible and hidden tests cover ordinary rendering and ownership/copy/move/cache-reallocation behavior respectively; the author solution passes both suites.
+- CPP-008 Deadlock-free account transfers added as version 2. It is a hard C++20 concurrency/debugging task with an intentional opposing-lock deadlock, result-precedence/error paths, local-locking progress requirements, and independent hidden tests for repeated opposing transfers, disjoint-pair progress, aggregate-balance preservation, and a throwing transfer overlapping a successful shared-account transfer.
+
+## CPP-008 autonomous review (2026-09-11)
+
+- Both approved models passed version 1. `llama-hase/qwen3.8-27b` used the direct, correct `std::scoped_lock` repair and passed independent visible/hidden validation in 111.86 seconds agent time (18,421 maximum context tokens; 2,590 generated tokens).
+- `lmstudio/qwen/qwen3.6-35b-a3b` also used `std::scoped_lock`, but took account-balance snapshots before acquiring either account mutex and restored those snapshots in a catch block. A successful overlapping transfer can therefore be overwritten when the hook throws. This is a genuine contract gap, not an artificial hardening.
+- Version 2 makes concurrent throwing/successful overlap explicit and adds a gated hidden regression. The reference-quality local-lock implementation and the preserved 27B workspace pass it; the preserved A3B workspace fails it with `HIDDEN_TEST_FAILURE`.
 
 ## CPP-007 autonomous review (2026-09-11)
 
@@ -72,7 +79,7 @@
 
 ## Active
 
-- Stage 3 — Expand the C++ suite incrementally. CPP-007 version 1 is complete: its reference implementation and framework tests pass, both approved model runs were reviewed, and the A3B copy-assignment failure was correctly classified. Stop here before adding CPP-008.
+- Stage 3 — Expand the C++ suite incrementally. CPP-008 version 2 is complete pending final framework/reference re-validation: both approved model runs were reviewed and the concurrent exception-safety gap was incorporated without weakening the task. Stop here before adding CPP-009.
 - C++ validation now force-includes a packaged MSVC runtime policy for Debug builds. CRT assertions and Windows crash reporting are redirected to captured stderr/non-interactive process termination, preventing Abort/Retry/Ignore dialogs from blocking validation. A deliberate assertion smoke test produced a normal CTest failure with no popup.
 
 ## Pending

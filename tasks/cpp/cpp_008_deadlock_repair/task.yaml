@@ -1,0 +1,8 @@
+{
+  "id": "cpp_008",
+  "title": "Deadlock-free account transfers",
+  "language": "cpp",
+  "standard": "c++20",
+  "difficulty": "hard",
+  "version": 2
+}
