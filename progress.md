@@ -7,6 +7,7 @@
 - Stage 1 — Framework skeleton verified end-to-end with real MSVC for CPP-001, CPP-003, and CPP-005.
 - Manual workflow: `validate --all` discovers only metadata-marked direct children of `work/`, supports `--task`, continues after corrupt workspaces, and prints per-run plus aggregate outcomes.
 - Manual preparation supports `--label` for an optional safe model/run suffix; new workspace names use the concise `_man` marker.
+- Validation reports show each task's declared complexity for both individual and batch runs, using compact labels (`E`, `M`, `H`, `VH`).
 - Benchmark-specification review of CPP-001, CPP-003, and CPP-005 based on real manual model runs; all three task versions are now version 2.
 
 ## Benchmark specification review (2026-09-11)
@@ -19,7 +20,7 @@
 
 - Toolchain detected: Visual Studio Community 2026 / MSVC 19.51.36257 x64
   (`cl.exe` at `C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\cl.exe`), CMake 4.4.3, Python 3.12.4.
-- Framework tests passed: `python -m unittest discover -s tests -v` (5 tests).
+- Framework tests passed: `python -m unittest discover -s tests -v` (9 tests at the latest verification).
 - Commands exercised:
   - `python -m hasebench list`
   - `python -m hasebench info cpp_001`

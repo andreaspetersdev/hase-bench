@@ -25,7 +25,7 @@ python -m hasebench validate --all --task cpp_001
 
 Use `--verbose` to print captured CMake and CTest diagnostics. Preparation copies only `starter/` and `TASK.md`; hidden validators remain under canonical `tasks/` and are never placed in the workspace.
 
-`validate --all` scans only direct children of `work/` containing Hase Bench workspace metadata. It continues past malformed workspaces and prints a concise per-run and aggregate result summary.
+`validate --all` scans only direct children of `work/` containing Hase Bench workspace metadata. It continues past malformed workspaces and prints a concise per-run and aggregate result summary, including task complexity (`E`, `M`, `H`, or `VH`).
 
 Currently available tasks are CPP-001 (expression evaluator), CPP-003 (generic LRU cache), and CPP-005 (SPSC ring buffer). See [progress.md](progress.md) for the current stage.
 

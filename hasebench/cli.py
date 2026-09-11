@@ -64,7 +64,7 @@ def _validate_one(workspace: Path, verbose: bool) -> int:
     if task.language != "cpp":
         raise ValueError(f"No validator is available for {task.language}")
     result = validate_cpp(workspace, task)
-    _print_result(result, verbose)
+    _print_result(result, _compact_complexity(task.difficulty), verbose)
     return 0 if result.outcome == "SUCCESS" else 1
 
 
@@ -75,7 +75,7 @@ def _validate_all(task_filter: str | None, verbose: bool) -> int:
         candidates = [candidate for candidate in candidates if candidate.task_id == normalized_filter]
 
     passed = 0
-    rows: list[tuple[str, str, str, str, str]] = []
+    rows: list[str] = []
     for candidate in candidates:
         task_id = candidate.task_id or "unknown"
         workspace_id = candidate.workspace_id or candidate.path.name
@@ -83,9 +83,11 @@ def _validate_all(task_filter: str | None, verbose: bool) -> int:
             outcome = "WORKSPACE_ERROR"
             visible = hidden = "NOT_RUN"
             detail = candidate.metadata_error
+            complexity = "unknown"
         else:
             try:
                 task = find_task(task_id)
+                complexity = _compact_complexity(task.difficulty)
                 if task.language != "cpp":
                     raise ValueError(f"No validator is available for {task.language}")
                 result = validate_cpp(candidate.path, task)
@@ -94,15 +96,16 @@ def _validate_all(task_filter: str | None, verbose: bool) -> int:
                 hidden = _status(result.hidden)
                 detail = ""
                 if verbose:
-                    _print_result(result, True)
+                    _print_result(result, complexity, True)
             except (KeyError, ValueError, OSError) as error:
                 outcome = "WORKSPACE_ERROR"
                 visible = hidden = "NOT_RUN"
                 detail = str(error)
-        rows.append((task_id, workspace_id, outcome, visible, hidden, detail))
+                complexity = "unknown"
+        rows.append(outcome)
         passed += outcome == "SUCCESS"
         suffix = f"; {detail}" if detail else ""
-        print(f"{workspace_id} / {task_id}: {_colored_outcome(outcome)} "
+        print(f"{workspace_id} / {task_id} ({complexity}): {_colored_outcome(outcome)} "
               f"(visible: {_colored_status(visible)}, hidden: {_colored_status(hidden)}{suffix})")
 
     failed = len(rows) - passed
@@ -133,8 +136,20 @@ def _color(text: str, code: str) -> str:
     return f"\033[{code}m{text}\033[0m"
 
 
-def _print_result(result: object, verbose: bool) -> None:
-    print(f"Task:       {result.task}\nBuild:      {'PASS' if result.build.returncode == 0 else 'FAIL'}")
+def _compact_complexity(difficulty: str) -> str:
+    labels = {
+        "very easy": "VE",
+        "easy": "E",
+        "medium": "M",
+        "hard": "H",
+        "very hard": "VH",
+    }
+    return labels.get(difficulty.lower(), difficulty.upper())
+
+
+def _print_result(result: object, complexity: str, verbose: bool) -> None:
+    print(f"Task:       {result.task}\nComplexity: {complexity}\n"
+          f"Build:      {'PASS' if result.build.returncode == 0 else 'FAIL'}")
     if result.visible is not None:
         print(f"Visible:    {_status(result.visible)}")
     if result.hidden is not None:

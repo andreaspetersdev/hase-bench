@@ -2,11 +2,21 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
+from hasebench.cli import _compact_complexity, _print_result, _validate_all
 from hasebench.tasks import discover_tasks, find_task
-from hasebench.validation import _deduplicate_environment
-from hasebench.workspaces import WORKSPACE_METADATA, discover_workspaces, prepare_workspace, task_for_workspace
+from hasebench.validation import CommandResult, ValidationResult, _deduplicate_environment
+from hasebench.workspaces import (
+    WORKSPACE_METADATA,
+    WorkspaceCandidate,
+    discover_workspaces,
+    prepare_workspace,
+    task_for_workspace,
+)
 
 
 class FrameworkTests(unittest.TestCase):
@@ -55,6 +65,31 @@ class FrameworkTests(unittest.TestCase):
             self.assertEqual(candidates[0].task_id, "cpp_001")
             self.assertEqual(candidates[0].workspace_id, prepared.name)
             self.assertIsNotNone(candidates[1].metadata_error)
+
+    def test_single_validation_report_includes_task_complexity(self) -> None:
+        command = CommandResult(0, "", 0.0)
+        result = ValidationResult("cpp_001", command, command, command)
+        output = StringIO()
+        with redirect_stdout(output):
+            _print_result(result, "M", False)
+        self.assertIn("Task:       cpp_001\nComplexity: M", output.getvalue())
+
+    def test_batch_validation_report_includes_task_complexity(self) -> None:
+        command = CommandResult(0, "", 0.0)
+        result = ValidationResult("cpp_001", command, command, command)
+        candidate = WorkspaceCandidate(Path("work/run-A"), "cpp_001", "run-A")
+        output = StringIO()
+        with patch("hasebench.cli.discover_workspaces", return_value=[candidate]), \
+             patch("hasebench.cli.validate_cpp", return_value=result), \
+             redirect_stdout(output):
+            self.assertEqual(_validate_all(None, False), 0)
+        self.assertIn("run-A / cpp_001 (M): SUCCESS", output.getvalue())
+
+    def test_complexity_labels_are_compact(self) -> None:
+        self.assertEqual(_compact_complexity("easy"), "E")
+        self.assertEqual(_compact_complexity("medium"), "M")
+        self.assertEqual(_compact_complexity("hard"), "H")
+        self.assertEqual(_compact_complexity("very hard"), "VH")
 
 
 if __name__ == "__main__":
