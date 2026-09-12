@@ -25,13 +25,13 @@ version changes.
 | CPP-013 | Streaming log statistics | Medium-hard | 2 | Strict bounded single-line parsing, inclusive time-window accounting, fixed severity counts, compensated all-history mean, and FIFO percentile sampling with nearest-rank semantics. Independent tests cover input grammar, malformed/outside precedence, sample rolling, empty results, configuration errors, an adversarial large-plus-small mean, and complete long-decimal conversion without truncation. |
 | CPP-014 | HTTP request parser | Hard | 2 | Bounded incremental HTTP/1.1 request parser: strict CRLF/message grammar, case-insensitive lookup with preserved field spelling, Content-Length duplicate policy, arbitrary body bytes, request pipelining, and an irreversible malformed-input state. Hidden validation replays a body-bearing request at every split point and includes a direct CRLF-boundary regression under the existing arbitrary-split contract. |
 | CPP-015 | Generic event dispatcher | Hard | 1 | Type-safe erased callback dispatch with deterministic subscription order, snapshot delivery under re-entrant removal/addition, nested emits, exception propagation, event-type isolation, and move-safe idempotent subscription tokens. |
+| CPP-016 | Resource pool with RAII handle | Hard | 1 | RAII ownership and move-semantics repair: exact-once return, exhaustion/reuse, handle move assignment, pool move construction/assignment, stale-handle inertness, and safe destruction boundaries. |
+| CPP-017 | Refactor legacy polymorphism | Very hard | 1 | Behavior-preserving legacy text/JSON renderer refactor: add redaction as a cross-cutting behavior axis while retaining factory compatibility, ordering, escaping, repeated keys, and invalid-format handling. |
 
 ## Planned tasks
 
 | ID | Title | Difficulty | Intended benchmark scope |
 | --- | --- | --- | --- |
-| CPP-016 | Resource pool with RAII handle | Hard | Ownership repair across nested scopes, exceptions, pool/handle moves, destruction races as specified, resource reuse, and double-return prevention. |
-| CPP-017 | Refactor legacy polymorphism | Very hard | Behavior-preserving multi-file refactor where a new feature creates a new behavioral axis; legacy factories/configuration remain compatible and validation stays architecture-neutral. |
 | CPP-018 | Image processing kernel | Medium-hard | Stride- and aliasing-aware image processing with deterministic borders, dimension rules, precision/clamping, tiny images, and trusted-reference checks. |
 | CPP-019 | Concurrent message recorder | Very hard | Controlled burst/full-queue/writer-failure/shutdown scenarios, specified backpressure, monotonic sequencing, exactly-once persistence of accepted messages, and clean teardown. |
 | CPP-020 | Integrated mini service | Expert | At least four interacting components with lifetime and shutdown/error defects plus a feature crossing parser/configuration/queue/statistics; hidden lifecycle, rollback, integration, and legacy-compatibility checks. |
