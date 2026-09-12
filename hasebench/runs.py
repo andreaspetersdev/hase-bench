@@ -15,6 +15,11 @@ AUTONOMOUS_INSTRUCTION = """Read TASK.md and solve the task.
 
 The current directory is the entire project scope for this task. Do not inspect, list, read, or modify parent or ancestor directories, even if they are visible through Git. Do not change files outside the current workspace.
 
+Use only files and directories inside the current workspace. `TMP` and `TEMP`
+already point to the workspace-local `.hasebench-tmp` directory; use that
+directory for temporary files when needed. Do not create or use temporary
+files or directories elsewhere.
+
 You may inspect the repository, edit the implementation, configure/build the project, and run the visible tests.
 
 Continue until you believe the task is complete."""

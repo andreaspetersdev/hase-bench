@@ -16,7 +16,7 @@ from hasebench.agents import (
     extract_opencode_telemetry,
 )
 from hasebench.cli import _compact_complexity, _print_result, _print_run_result, _run_all, _validate_all
-from hasebench.runs import AGENT_LOG, RUN_METADATA, AutonomousRunResult, run_autonomous
+from hasebench.runs import AGENT_LOG, AUTONOMOUS_INSTRUCTION, RUN_METADATA, AutonomousRunResult, run_autonomous
 from hasebench.reports import RunSummaryRow, write_markdown_summary
 from hasebench.tasks import discover_tasks, find_task
 from hasebench.validation import CommandResult, ValidationResult, _cmake_debug_flags, _deduplicate_environment
@@ -30,8 +30,13 @@ from hasebench.workspaces import (
 
 
 class FrameworkTests(unittest.TestCase):
+    def test_autonomous_prompt_limits_temporary_files_to_workspace_tmp(self) -> None:
+        self.assertIn("`TMP` and `TEMP`", AUTONOMOUS_INSTRUCTION)
+        self.assertIn("`.hasebench-tmp`", AUTONOMOUS_INSTRUCTION)
+        self.assertIn("temporary\nfiles or directories elsewhere", AUTONOMOUS_INSTRUCTION)
+
     def test_cpp_tasks_are_discovered(self) -> None:
-        self.assertEqual([task.identifier for task in discover_tasks()], ["cpp_001", "cpp_002", "cpp_003", "cpp_004", "cpp_005", "cpp_006", "cpp_007", "cpp_008", "cpp_009", "cpp_010"])
+        self.assertEqual([task.identifier for task in discover_tasks()], ["cpp_001", "cpp_002", "cpp_003", "cpp_004", "cpp_005", "cpp_006", "cpp_007", "cpp_008", "cpp_009", "cpp_010", "cpp_011"])
         self.assertEqual(find_task("cpp_003").standard, "c++20")
 
     def test_workspace_contains_no_hidden_validator(self) -> None:
@@ -39,6 +44,15 @@ class FrameworkTests(unittest.TestCase):
             workspace = prepare_workspace(find_task("cpp_001"), Path(temporary))
             self.assertTrue((workspace / "TASK.md").is_file())
             self.assertTrue((workspace / "CMakeLists.txt").is_file())
+            self.assertTrue((workspace / ".git").is_dir())
+            self.assertTrue((workspace / ".hasebench-msvc-runtime.hpp").is_file())
+            self.assertEqual(
+                (workspace / "AGENTS.md").read_text(encoding="utf-8"),
+                "# Workspace instructions\n\n"
+                "This directory is a standalone software project. Follow the task specification\n"
+                "in `TASK.md`, keep changes within this project, and use its build and test\n"
+                "commands as needed.\n",
+            )
             self.assertTrue((workspace / WORKSPACE_METADATA).is_file())
             self.assertFalse((workspace / "validator").exists())
             self.assertFalse((workspace / "hidden_tests.cpp").exists())
@@ -139,6 +153,8 @@ class FrameworkTests(unittest.TestCase):
             environment = _agent_environment(workspace)
             self.assertEqual(environment["TMP"], str(workspace / ".hasebench-tmp"))
             self.assertTrue((workspace / ".hasebench-tmp").is_dir())
+            self.assertEqual(environment["OPENCODE_DISABLE_PROJECT_CONFIG"], "1")
+            self.assertIn('/FI"', environment["CL"])
 
     def test_opencode_telemetry_uses_json_stream_usage_and_excludes_tool_time(self) -> None:
         output = "\n".join([
@@ -194,11 +210,11 @@ class FrameworkTests(unittest.TestCase):
             "task_filter": None, "agent": "opencode", "model": "test", "backend": "test", "variant": None,
         })()
         row = object()
-        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row)]) as run_one, \
+        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row)]) as run_one, \
              patch("hasebench.cli.write_markdown_summary"), redirect_stdout(StringIO()) as output:
             self.assertEqual(_run_all(None, arguments), 1)
         self.assertIn("Summary:", output.getvalue())
-        self.assertEqual([call.args[0].identifier for call in run_one.call_args_list], ["cpp_001", "cpp_002", "cpp_003", "cpp_004", "cpp_005", "cpp_006", "cpp_007", "cpp_008", "cpp_009", "cpp_010"])
+        self.assertEqual([call.args[0].identifier for call in run_one.call_args_list], ["cpp_001", "cpp_002", "cpp_003", "cpp_004", "cpp_005", "cpp_006", "cpp_007", "cpp_008", "cpp_009", "cpp_010", "cpp_011"])
 
     def test_markdown_summary_contains_a_result_table(self) -> None:
         row = RunSummaryRow(

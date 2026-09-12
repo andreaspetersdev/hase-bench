@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import subprocess
 from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,6 +12,13 @@ from .models import Task
 from .tasks import repository_root
 
 WORKSPACE_METADATA = ".hasebench-workspace.json"
+MSVC_RUNTIME_POLICY = ".hasebench-msvc-runtime.hpp"
+WORKSPACE_AGENTS = """# Workspace instructions
+
+This directory is a standalone software project. Follow the task specification
+in `TASK.md`, keep changes within this project, and use its build and test
+commands as needed.
+"""
 
 
 @dataclass(frozen=True)
@@ -48,6 +56,15 @@ def prepare_workspace(
         suffix += 1
     shutil.copytree(task.root / "starter", workspace)
     shutil.copy2(task.root / "TASK.md", workspace / "TASK.md")
+    # OpenCode may run a failing Debug test itself.  Make that process
+    # non-interactive too, rather than allowing an MSVC CRT modal dialog to
+    # consume the autonomous-run timeout.
+    shutil.copy2(Path(__file__).with_name("msvc_noninteractive_assert.hpp"), workspace / MSVC_RUNTIME_POLICY)
+    # A workspace must be its own repository.  This prevents tools that search
+    # Git ancestors for project instructions from reaching the benchmark
+    # repository and its author-only material.
+    subprocess.run(["git", "init", "--quiet", str(workspace)], check=True)
+    (workspace / "AGENTS.md").write_text(WORKSPACE_AGENTS, encoding="utf-8")
     (workspace / WORKSPACE_METADATA).write_text(
         json.dumps(
             {

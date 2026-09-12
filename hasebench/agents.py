@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
+from .workspaces import MSVC_RUNTIME_POLICY
+
 
 @dataclass(frozen=True)
 class AgentRunRequest:
@@ -201,10 +203,19 @@ def _default_opencode_executable() -> str:
 
 
 def _agent_environment(workspace: Path) -> dict[str, str]:
-    """Keep ordinary agent-created temporary files inside the saved workspace."""
+    """Keep temporary files local and prevent loading benchmark-parent config."""
     temporary = workspace / ".hasebench-tmp"
     temporary.mkdir(exist_ok=True)
     environment = dict(os.environ)
     environment["TMP"] = str(temporary)
     environment["TEMP"] = str(temporary)
+    # OpenCode otherwise searches ancestor directories for project rules.
+    # The explicit agent prompt and TASK.md remain available, while this avoids
+    # accidental disclosure of benchmark-author instructions.
+    environment["OPENCODE_DISABLE_PROJECT_CONFIG"] = "1"
+    # ``CL`` is inherited by MSVC invoked from an agent's own CMake commands.
+    # The copied header redirects Debug CRT assertions/abort handling to stderr
+    # and process failure instead of a modal Abort/Retry/Ignore dialog.
+    force_include = f'/FI"{workspace / MSVC_RUNTIME_POLICY}"'
+    environment["CL"] = f'{environment.get("CL", "").strip()} {force_include}'.strip()
     return environment

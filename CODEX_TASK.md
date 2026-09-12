@@ -513,6 +513,18 @@ Difficulty:
 
 ## CPP-011 — Matrix / Least Squares
 
+Implemented as version 2 in `tasks/cpp/cpp_011_least_squares`. The fixed,
+row-major API makes its numerical and failure contract objectively testable:
+stable QR least squares for full-column-rank overdetermined matrices, explicit
+dimension/non-finite/rank errors, and scale-relative rank classification.
+Visible validation establishes the basic API; hidden validation adds noisy and
+higher-dimensional systems, residual integrity, close columns, badly scaled
+independent columns, and error precedence. Version 2 adds an ordered large
+later column whose remaining independent direction is below the required
+original-column-relative rank threshold, preventing an incorrect threshold
+based only on the diagonal of `R`. It intentionally rejects normal
+equation shortcuts without prescribing a single QR implementation.
+
 Provide a small matrix abstraction or fixed API without external libraries.
 
 Ask the agent to implement a numerical least-squares solver for an overdetermined system.

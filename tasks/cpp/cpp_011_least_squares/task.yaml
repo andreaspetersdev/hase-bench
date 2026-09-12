@@ -1,0 +1,8 @@
+{
+  "id": "cpp_011",
+  "title": "QR least-squares solver",
+  "language": "cpp",
+  "standard": "c++20",
+  "difficulty": "very-hard",
+  "version": 2
+}
