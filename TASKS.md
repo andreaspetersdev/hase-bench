@@ -22,12 +22,12 @@ version changes.
 | CPP-010 | Graph dependency resolver | Medium-hard | 1 | Deterministic lexically tie-broken topological resolution; precedence-defined duplicate and missing diagnostics; and canonical closed directed cycle paths across deep, diamond, and disconnected graphs. |
 | CPP-011 | QR least-squares solver | Very hard | 2 | Stable overdetermined least-squares solving without normal equations. The explicit dimension/non-finite/rank policy, scale-relative rank threshold based on original columns (including a large later column), noisy/rectangular residual checks, close-column system, and badly scaled full-rank system distinguish practical QR implementations from fragile algebraic shortcuts. |
 | CPP-012 | Quaternion rotation utilities | Hard | 1 | Numerically robust right-handed quaternion rotations with explicit non-finite, near-zero, sign-canonicalization, and proper-matrix policies. Independent tests cover composition order, inverse and vector invariants, scale independence, matrix orthogonality/round trip, reflection/skew rejection, and error result values. |
+| CPP-013 | Streaming log statistics | Medium-hard | 2 | Strict bounded single-line parsing, inclusive time-window accounting, fixed severity counts, compensated all-history mean, and FIFO percentile sampling with nearest-rank semantics. Independent tests cover input grammar, malformed/outside precedence, sample rolling, empty results, configuration errors, an adversarial large-plus-small mean, and complete long-decimal conversion without truncation. |
 
 ## Planned tasks
 
 | ID | Title | Difficulty | Intended benchmark scope |
 | --- | --- | --- | --- |
-| CPP-013 | Log parser and statistics | Medium-hard | Bounded-memory aggregation, documented percentile window, malformed-record accounting, timestamp boundary policy, large streams, and numeric-stability checks. |
 | CPP-014 | HTTP request parser | Hard | Incremental HTTP/1.1 parsing at every byte split, bounded headers/bodies, duplicate-length/error policy, pipelined remainders, and an irreversible malformed-input state. |
 | CPP-015 | Generic event dispatcher | Hard | Type-safe events with deterministic re-entrant subscribe/unsubscribe semantics, move-safe idempotent tokens, and explicit exception isolation/propagation policy. |
 | CPP-016 | Resource pool with RAII handle | Hard | Ownership repair across nested scopes, exceptions, pool/handle moves, destruction races as specified, resource reuse, and double-return prevention. |

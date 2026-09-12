@@ -591,21 +591,16 @@ Difficulty:
 
 ---
 
-## CPP-013 — Log Parser and Statistics
+## CPP-013 — Streaming Log Statistics
 
-Provide several sample structured/unstructured log lines.
-
-Implement a streaming parser that extracts fields and produces statistics such as:
-
-```text
-message counts
-latency mean
-percentiles
-errors by category
-time-window aggregation
-```
-
-Require a documented bounded-memory streaming strategy for aggregate metrics; if exact percentiles require retained samples, specify an explicit bounded window instead. Define malformed-record accounting, timestamp inclusivity at window boundaries, and merge/order behavior for equal timestamps. Tests should exercise malformed records, boundary timestamps, large streams, and numeric stability for latency aggregation.
+Implemented as version 2. Build a C++20 single-line log ingester with a strict
+four-field grammar, inclusive configured timestamp window, fixed severity
+counters, malformed/outside precedence, a compensated mean of all accepted
+latencies, and a fixed-capacity FIFO latency sample for nearest-rank p50/p95.
+The implementation has bounded retained state and must not retain the complete
+input stream. Hidden validation covers grammar boundaries, rolling percentiles,
+configuration errors, time boundaries, adversarial numerical accumulation, and
+long decimal conversion that must not discard later fractional digits.
 
 Category:
 
