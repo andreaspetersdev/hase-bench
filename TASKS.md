@@ -27,12 +27,12 @@ version changes.
 | CPP-015 | Generic event dispatcher | Hard | 1 | Type-safe erased callback dispatch with deterministic subscription order, snapshot delivery under re-entrant removal/addition, nested emits, exception propagation, event-type isolation, and move-safe idempotent subscription tokens. |
 | CPP-016 | Resource pool with RAII handle | Hard | 1 | RAII ownership and move-semantics repair: exact-once return, exhaustion/reuse, handle move assignment, pool move construction/assignment, stale-handle inertness, and safe destruction boundaries. |
 | CPP-017 | Refactor legacy polymorphism | Very hard | 1 | Behavior-preserving legacy text/JSON renderer refactor: add redaction as a cross-cutting behavior axis while retaining factory compatibility, ordering, escaping, repeated keys, and invalid-format handling. |
+| CPP-018 | Image processing kernel | Medium-hard | 1 | Stride-aware grayscale 3×3 valid-neighbor box blur with exact floor rounding, deterministic borders, padding preservation, dimension checks, and active-range alias rejection. |
 
 ## Planned tasks
 
 | ID | Title | Difficulty | Intended benchmark scope |
 | --- | --- | --- | --- |
-| CPP-018 | Image processing kernel | Medium-hard | Stride- and aliasing-aware image processing with deterministic borders, dimension rules, precision/clamping, tiny images, and trusted-reference checks. |
 | CPP-019 | Concurrent message recorder | Very hard | Controlled burst/full-queue/writer-failure/shutdown scenarios, specified backpressure, monotonic sequencing, exactly-once persistence of accepted messages, and clean teardown. |
 | CPP-020 | Integrated mini service | Expert | At least four interacting components with lifetime and shutdown/error defects plus a feature crossing parser/configuration/queue/statistics; hidden lifecycle, rollback, integration, and legacy-compatibility checks. |
 | CPP-021 | SIMD PCA / covariance kernel | Expert | Stride-aware PCA with deterministic symmetric eigensolving, degeneracy/non-finite policy, scalar correctness, optional runtime-dispatched AVX2 accumulation, forced backend validation, and projection/reconstruction residual checks. |
