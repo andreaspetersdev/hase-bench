@@ -563,32 +563,19 @@ Difficulty:
 
 ---
 
-## CPP-012 — Geometry / Quaternion
+## CPP-012 — Quaternion rotation utilities
 
-Provide incomplete quaternion/3D rotation utilities.
+Implemented as version 1. Complete a compact C++20 right-handed rotation
+library with normalization, axis-angle conversion, composition, inversion,
+vector rotation, and conversion to and from row-major 3x3 matrices. The
+contract fixes composition order, error values, near-zero behavior, and the
+otherwise ambiguous quaternion sign. Matrix conversion accepts only finite
+proper rotations with a stated orthogonality/determinant tolerance; it must
+reject, rather than repair, reflections and skewed matrices.
 
-Required behavior may include:
-
-```text
-normalization
-multiplication
-inverse/conjugate
-rotate vector
-axis-angle conversion
-rotation-matrix conversion
-```
-
-Specify zero/near-zero normalization behavior, the quaternion sign ambiguity, and how invalid rotation matrices are rejected or normalized. Hidden tests should verify mathematical invariants rather than only example values.
-
-Examples:
-
-```text
-norm
-inverse identity
-rotation composition
-matrix orthogonality
-round trip
-```
+Hidden validation checks vector/inverse/composition invariants rather than raw
+quaternion equality, along with canonical sign behavior, scale independence,
+matrix orthogonality and round trips, and all documented rejection paths.
 
 Category:
 

@@ -87,7 +87,11 @@ class OpenCodeAgentRunner:
         ])
         environment = _agent_environment(request.workspace)
         try:
-            completed = subprocess.run(
+            # ``opencode.cmd`` launches ``opencode.exe`` as a child on Windows.
+            # subprocess.run only terminates the wrapper when its timeout fires,
+            # leaving that child alive.  Keep the Popen handle so the complete
+            # process tree can be terminated below.
+            process = subprocess.Popen(
                 arguments,
                 cwd=request.workspace,
                 env=environment,
@@ -96,19 +100,26 @@ class OpenCodeAgentRunner:
                 errors="replace",
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                timeout=request.timeout_seconds,
-                check=False,
             )
-            output = completed.stdout or ""
-            outcome = "SUCCESS" if completed.returncode == 0 else "AGENT_NONZERO_EXIT"
+            output, _ = process.communicate(timeout=request.timeout_seconds)
+            output = output or ""
+            outcome = "SUCCESS" if process.returncode == 0 else "AGENT_NONZERO_EXIT"
             result = AgentRunResult(
-                started_at, _timestamp(), time.monotonic() - started, completed.returncode, output, outcome,
+                started_at, _timestamp(), time.monotonic() - started, process.returncode, output, outcome,
                 extract_opencode_telemetry(output),
             )
         except subprocess.TimeoutExpired as error:
+            _terminate_process_tree(process)
+            remaining, _ = process.communicate()
             output = error.stdout or ""
             if isinstance(output, bytes):
                 output = output.decode(errors="replace")
+            if isinstance(remaining, bytes):
+                remaining = remaining.decode(errors="replace")
+            # communicate() can return all output, including data already
+            # supplied with TimeoutExpired.  Prefer that non-duplicated stream.
+            if remaining:
+                output = remaining
             result = AgentRunResult(
                 started_at, _timestamp(), time.monotonic() - started, None, output, "AGENT_TIMEOUT",
                 extract_opencode_telemetry(output),
@@ -118,6 +129,22 @@ class OpenCodeAgentRunner:
 
         request.log_path.write_text(result.output, encoding="utf-8")
         return result
+
+
+def _terminate_process_tree(process: subprocess.Popen[str]) -> None:
+    """Terminate an agent and every process it spawned after a timeout."""
+    if os.name == "nt":
+        # taskkill's /T follows the cmd-wrapper -> opencode.exe relationship.
+        # It is deliberately best-effort: a process may have exited between
+        # timeout detection and this command.
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    else:
+        process.kill()
 
 
 def extract_opencode_telemetry(output: str) -> AgentTelemetry:

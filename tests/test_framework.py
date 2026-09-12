@@ -13,6 +13,7 @@ from hasebench.agents import (
     OpenCodeAgentRunner,
     _agent_environment,
     _default_opencode_executable,
+    _terminate_process_tree,
     extract_opencode_telemetry,
 )
 from hasebench.cli import _compact_complexity, _print_result, _print_run_result, _run_all, _validate_all
@@ -36,7 +37,7 @@ class FrameworkTests(unittest.TestCase):
         self.assertIn("temporary\nfiles or directories elsewhere", AUTONOMOUS_INSTRUCTION)
 
     def test_cpp_tasks_are_discovered(self) -> None:
-        self.assertEqual([task.identifier for task in discover_tasks()], ["cpp_001", "cpp_002", "cpp_003", "cpp_004", "cpp_005", "cpp_006", "cpp_007", "cpp_008", "cpp_009", "cpp_010", "cpp_011"])
+        self.assertEqual([task.identifier for task in discover_tasks()], ["cpp_001", "cpp_002", "cpp_003", "cpp_004", "cpp_005", "cpp_006", "cpp_007", "cpp_008", "cpp_009", "cpp_010", "cpp_011", "cpp_012"])
         self.assertEqual(find_task("cpp_003").standard, "c++20")
 
     def test_workspace_contains_no_hidden_validator(self) -> None:
@@ -134,18 +135,28 @@ class FrameworkTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
             request = AgentRunRequest(workspace, "solve it", "hase/qwen", 30, workspace / "agent.log", "xhigh")
-            completed = type("Completed", (), {"returncode": 0, "stdout": '{"type":"text"}\n'})()
-            with patch("hasebench.agents.subprocess.run", return_value=completed) as run:
+            process = type("Process", (), {
+                "returncode": 0,
+                "communicate": lambda self, timeout: ('{"type":"text"}\n', None),
+            })()
+            with patch("hasebench.agents.subprocess.Popen", return_value=process) as popen:
                 result = OpenCodeAgentRunner("opencode-test").run(request)
             self.assertEqual(result.outcome, "SUCCESS")
-            self.assertEqual(run.call_args.args[0], [
+            self.assertEqual(popen.call_args.args[0], [
                 "opencode-test", "run", "--dir", str(workspace), "--model", "hase/qwen", "--variant", "xhigh",
                 "--format", "json", "--auto", "solve it",
             ])
-            self.assertEqual(run.call_args.kwargs["env"]["TEMP"], str(workspace / ".hasebench-tmp"))
-            self.assertEqual(run.call_args.kwargs["encoding"], "utf-8")
-            self.assertEqual(run.call_args.kwargs["errors"], "replace")
+            self.assertEqual(popen.call_args.kwargs["env"]["TEMP"], str(workspace / ".hasebench-tmp"))
+            self.assertEqual(popen.call_args.kwargs["encoding"], "utf-8")
+            self.assertEqual(popen.call_args.kwargs["errors"], "replace")
             self.assertEqual(request.log_path.read_text(encoding="utf-8"), '{"type":"text"}\n')
+
+    def test_windows_timeout_terminates_the_complete_process_tree(self) -> None:
+        process = type("Process", (), {"pid": 4321})()
+        with patch("hasebench.agents.os.name", "nt"), \
+             patch("hasebench.agents.subprocess.run") as run:
+            _terminate_process_tree(process)
+        self.assertEqual(run.call_args.args[0], ["taskkill", "/PID", "4321", "/T", "/F"])
 
     def test_agent_environment_contains_workspace_temp_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -210,11 +221,11 @@ class FrameworkTests(unittest.TestCase):
             "task_filter": None, "agent": "opencode", "model": "test", "backend": "test", "variant": None,
         })()
         row = object()
-        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row)]) as run_one, \
+        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row), (0, row)]) as run_one, \
              patch("hasebench.cli.write_markdown_summary"), redirect_stdout(StringIO()) as output:
             self.assertEqual(_run_all(None, arguments), 1)
         self.assertIn("Summary:", output.getvalue())
-        self.assertEqual([call.args[0].identifier for call in run_one.call_args_list], ["cpp_001", "cpp_002", "cpp_003", "cpp_004", "cpp_005", "cpp_006", "cpp_007", "cpp_008", "cpp_009", "cpp_010", "cpp_011"])
+        self.assertEqual([call.args[0].identifier for call in run_one.call_args_list], ["cpp_001", "cpp_002", "cpp_003", "cpp_004", "cpp_005", "cpp_006", "cpp_007", "cpp_008", "cpp_009", "cpp_010", "cpp_011", "cpp_012"])
 
     def test_markdown_summary_contains_a_result_table(self) -> None:
         row = RunSummaryRow(
