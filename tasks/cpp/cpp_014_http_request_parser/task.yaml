@@ -1,0 +1,8 @@
+{
+  "id": "cpp_014",
+  "title": "HTTP request parser",
+  "language": "cpp",
+  "standard": "c++20",
+  "difficulty": "hard",
+  "version": 2
+}
