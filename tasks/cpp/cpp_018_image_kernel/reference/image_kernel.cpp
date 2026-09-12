@@ -1,0 +1,3 @@
+#include "image_kernel.hpp"
+#include <stdexcept>
+void box_blur_3x3(ImageView s,MutableImageView o){if(s.width!=o.width||s.height!=o.height||s.stride<s.width||o.stride<o.width||(s.width&&s.height&&(!s.data||!o.data)))throw std::invalid_argument("image");if(!s.width||!s.height)return;auto sb=s.data, se=s.data+(s.height-1)*s.stride+s.width, ob=o.data,oe=o.data+(o.height-1)*o.stride+o.width;if(sb<oe&&ob<se)throw std::invalid_argument("overlap");for(std::size_t y=0;y<s.height;++y)for(std::size_t x=0;x<s.width;++x){unsigned sum=0,n=0;for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){auto yy=int(y)+dy,xx=int(x)+dx;if(yy>=0&&xx>=0&&yy<int(s.height)&&xx<int(s.width)){sum+=s.data[yy*s.stride+xx];++n;}}o.data[y*o.stride+x]=static_cast<unsigned char>(sum/n);}}
