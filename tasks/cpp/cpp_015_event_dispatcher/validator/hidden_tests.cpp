@@ -1,0 +1,5 @@
+#include "event_dispatcher.hpp"
+#include <cassert>
+#include <stdexcept>
+struct A { int n; }; struct B {};
+int main() { Dispatcher d; int log = 0; Dispatcher::Subscription later, added; auto first = d.subscribe<A>([&](const A&) { log = log * 10 + 1; later.reset(); }); later = d.subscribe<A>([&](const A&) { log = log * 10 + 2; }); d.emit(A{}); assert(log == 1); auto add = d.subscribe<A>([&](const A&) { if (!added) added = d.subscribe<A>([&](const A&) { log = log * 10 + 4; }); }); d.emit(A{}); assert(log == 11); d.emit(A{}); assert(log == 1114); added.reset(); first.reset(); add.reset(); bool threw = false; auto boom = d.subscribe<A>([](const A&) { throw std::runtime_error("x"); }); try { d.emit(A{}); } catch (const std::runtime_error&) { threw = true; } assert(threw); boom.reset(); Dispatcher::Subscription moved; { Dispatcher before; moved = before.subscribe<B>([&](const B&) { log += 1000; }); d = std::move(before); } d.emit(B{}); assert(log == 2114); moved.reset(); d.emit(B{}); assert(log == 2114); }
