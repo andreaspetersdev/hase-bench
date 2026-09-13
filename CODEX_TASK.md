@@ -795,24 +795,22 @@ Difficulty:
 
 ## CPP-019 — Concurrent Message Recorder
 
-Create a miniature version of a realistic producer/writer architecture.
+Implemented as version 2 in `tasks/cpp/cpp_019_message_recorder`. This C++20
+multi-producer recorder accepts caller-supplied timestamped byte messages and
+assigns gap-free sequence numbers to accepted submissions. One dedicated writer
+passes them to a sink in sequence order. Capacity bounds only messages waiting
+in the queue; the in-flight message does not occupy a slot, and a full queue
+causes immediate rejection. Closing rejects new submissions and drains accepted
+work before joining the writer. If the sink throws, writing stops and the failed
+message plus queued accepted messages remain available through `undelivered()`;
+successful persistence remains available through `snapshot()`.
 
-A producer submits timestamped byte messages.
-
-A dedicated consumer/writer persists them into a mock or in-memory sink.
-
-Requirements should include:
-
-```text
-bounded queue
-clean shutdown
-draining
-preserved message ordering
-no corruption
-backpressure/drop policy as specified
-```
-
-The starter implementation should contain at least one concurrency or shutdown defect. Specify a deterministic backpressure/drop policy, a monotonic sequence contract, and how writer failure is reported without silently losing accepted messages. Hidden tests should use controlled producer/writer gates for bursts, full queues, writer failure, and shutdown while data remains queued; they must verify exactly-once persistence of all accepted messages and clean thread teardown.
+The starter contains concurrency and shutdown defects. Visible and independent
+hidden tests use controlled sink gates to check ordering, queue capacity,
+concurrent submission, close/drain behavior, failure recovery, and clean thread
+teardown without relying on random scheduling. Version 2 additionally compares
+the actual sink arguments with persisted records and checks failure reporting,
+submission rejection, and recovery before an explicit close.
 
 Category:
 

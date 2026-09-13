@@ -28,12 +28,12 @@ version changes.
 | CPP-016 | Resource pool with RAII handle | Hard | 1 | RAII ownership and move-semantics repair: exact-once return, exhaustion/reuse, handle move assignment, pool move construction/assignment, stale-handle inertness, and safe destruction boundaries. |
 | CPP-017 | Refactor legacy polymorphism | Very hard | 1 | Behavior-preserving legacy text/JSON renderer refactor: add redaction as a cross-cutting behavior axis while retaining factory compatibility, ordering, escaping, repeated keys, and invalid-format handling. |
 | CPP-018 | Image processing kernel | Medium-hard | 1 | Stride-aware grayscale 3×3 valid-neighbor box blur with exact floor rounding, deterministic borders, padding preservation, dimension checks, and active-range alias rejection. |
+| CPP-019 | Concurrent message recorder | Very hard | 2 | Bounded multi-producer timestamped-byte recorder with a dedicated sink writer, immediate full-queue rejection, gap-free accepted sequence numbers, drain-on-close, and explicit failed/queued message recovery. Controlled sink gates check full-queue, failure, and shutdown behavior; version 2 also checks the values delivered to the sink and failure visibility before close. |
 
 ## Planned tasks
 
 | ID | Title | Difficulty | Intended benchmark scope |
 | --- | --- | --- | --- |
-| CPP-019 | Concurrent message recorder | Very hard | Controlled burst/full-queue/writer-failure/shutdown scenarios, specified backpressure, monotonic sequencing, exactly-once persistence of accepted messages, and clean teardown. |
 | CPP-020 | Integrated mini service | Expert | At least four interacting components with lifetime and shutdown/error defects plus a feature crossing parser/configuration/queue/statistics; hidden lifecycle, rollback, integration, and legacy-compatibility checks. |
 | CPP-021 | SIMD PCA / covariance kernel | Expert | Stride-aware PCA with deterministic symmetric eigensolving, degeneracy/non-finite policy, scalar correctness, optional runtime-dispatched AVX2 accumulation, forced backend validation, and projection/reconstruction residual checks. |
 
