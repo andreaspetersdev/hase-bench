@@ -1,0 +1,12 @@
+cmake_minimum_required(VERSION 3.20)
+project(cpp_020 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_library(mini_service
+    src/config.cpp src/parser.cpp src/stats.cpp src/work_queue.cpp src/service.cpp)
+target_include_directories(mini_service PUBLIC include)
+enable_testing()
+add_executable(mini_service_visible tests/visible_tests.cpp)
+target_link_libraries(mini_service_visible PRIVATE mini_service)
+add_test(NAME mini_service_visible COMMAND mini_service_visible)
+set_tests_properties(mini_service_visible PROPERTIES TIMEOUT 20)

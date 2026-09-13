@@ -818,36 +818,22 @@ Difficulty:
 
 ## CPP-020 — Integrated Mini Service
 
-This is the most difficult initial C++ task.
+Implemented as version 1 in `tasks/cpp/cpp_020_mini_service`. This expert
+C++20 task is a five-file service with configuration parsing, incremental
+legacy/tagged record parsing, transactional queue admission, a dedicated sink
+worker, and per-source alert statistics. The starter compiles but contains
+interacting ownership, format, accounting, admission, and shutdown/failure
+defects. The requested source-aware feature crosses every component.
 
-Provide a small multi-file service containing several components, for example:
-
-```text
-configuration
-message parser
-worker queue
-statistics
-serialization
-```
-
-The project should initially compile but contain several interacting logical defects across at least four components, including one ownership or lifetime defect and one shutdown/error-propagation defect. A requested feature should cross parser, configuration, queue, and statistics boundaries rather than be solvable in one file.
-
-TASK.md should describe observed incorrect behavior and requested feature changes without pointing directly to the defects.
-
-The agent should need to:
-
-```text
-inspect several files
-understand interactions
-run tests
-diagnose multiple issues
-modify multiple components
-re-run tests
-```
-
-Use visible tests for basic behavior and hidden tests for integration behavior, failure rollback, repeated lifecycle operations, and compatibility with a small legacy input corpus. The validator should report independent component failures where practical so results distinguish superficial fixes from real repository-level understanding.
-
-This task should intentionally distinguish stronger local coding models from weaker ones.
+The public contract fixes configuration and record grammars, limits, alert
+thresholds, queue capacity, all-or-nothing `ingest` behavior, retry after
+rejection, sink-failure recovery, and draining close. The agent-visible
+`TASK.md` describes behavior without identifying defect locations. Independent
+hidden targets report component and integration failures separately. They
+exercise source ownership after input mutation, every record split point,
+malformed records, per-source statistics, partial-line retry after queue
+rejection, batch rollback, sink failure, repeated close, and legacy input.
+The author solution passes both targets and visible validation on MSVC.
 
 Category:
 
