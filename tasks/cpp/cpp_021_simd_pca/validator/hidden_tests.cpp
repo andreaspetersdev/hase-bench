@@ -139,6 +139,20 @@ void stride_and_dispatch() {
             squared_residual += std::pow(projected.reconstruction[i] - data[r * 5 + i], 2);
     }
     assert(close(squared_residual, 6 * (reduced.eigenvalues[1] + reduced.eigenvalues[2]), 1e-7, 1e-7));
+
+    // Exercise the upper feature bound and both four-lane covariance halves.
+    std::vector<double> wide(8 * 10, nan);
+    for (std::size_t r = 0; r < 8; ++r)
+        for (std::size_t f = 0; f < 8; ++f)
+            wide[r * 10 + f] = static_cast<double>(((r + 1) * (f + 3) + f * f + 3 * r * r) % 31) - 15;
+    for (const auto request : {BackendRequest::scalar, BackendRequest::automatic}) {
+        const auto wide_model = fit_pca(wide, 8, 8, 10, 8, request);
+        check_model(wide_model, wide, 8, 8, 10, 8);
+        const auto full = project_reconstruct(wide_model, std::span<const double>(wide.data() + 20, 8));
+        assert(full.error == PcaError::none);
+        for (std::size_t f = 0; f < 8; ++f)
+            assert(close(full.reconstruction[f], wide[20 + f], 1e-8));
+    }
 }
 
 void degeneracy_and_scale() {
@@ -170,6 +184,23 @@ void degeneracy_and_scale() {
     const auto one = fit_pca(single, 1, 1, 1, 1, BackendRequest::scalar);
     check_model(one, single, 1, 1, 1, 1);
     assert(one.eigenvalues[0] == 0 && one.axes[0] == 1);
+
+    // Uniform scaling must not turn a rank-one eigenspace into two equal axes.
+    // The covariance entries are 2.5e-16, well within double's normal range.
+    const std::vector<double> tiny{
+        1e-8, 1e-8, -1e-8, -1e-8, 2e-8, 2e-8, -2e-8, -2e-8
+    };
+    for (const auto request : {BackendRequest::scalar, BackendRequest::automatic}) {
+        const auto scaled = fit_pca(tiny, 4, 2, 2, 1, request);
+        assert(scaled.error == PcaError::none);
+        assert(close(scaled.covariance[1], 2.5e-16, 1e-22, 1e-8));
+        assert(close(scaled.eigenvalues[0], 5e-16, 1e-22, 1e-8));
+        assert(std::abs(scaled.eigenvalues[1]) < 1e-22);
+        const auto projected = project_reconstruct(scaled, std::vector<double>{3e-8, 3e-8});
+        assert(projected.error == PcaError::none);
+        assert(close(projected.reconstruction[0], 3e-8, 1e-14, 1e-8));
+        assert(close(projected.reconstruction[1], 3e-8, 1e-14, 1e-8));
+    }
 }
 }
 

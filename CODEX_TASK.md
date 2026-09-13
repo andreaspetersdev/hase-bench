@@ -853,7 +853,7 @@ Difficulty:
 
 ## CPP-021 — SIMD PCA / Covariance Kernel
 
-Implemented as version 1 in `tasks/cpp/cpp_021_simd_pca`. The C++20 project
+Implemented as version 2 in `tasks/cpp/cpp_021_simd_pca`. The C++20 project
 uses a bounded eight-feature API with explicit stride, error results, backend
 request/reporting, population covariance, all eigenvalues, leading-component
 axes, and projection/reconstruction. Its independent hidden target compares
@@ -861,6 +861,10 @@ against scalar moments and checks eigenpair residuals, ordering, orthogonality,
 sign, dimensions, non-finite values, padded stride, badly scaled data,
 degenerate eigenspaces, and forced scalar/AVX2 dispatch. AVX2 is compiled only
 for its separate covariance source file and selected at runtime.
+Version 2 adds independent eight-feature dispatch and uniformly tiny,
+representable rank-one covariance checks. The latter detects an absolute
+Jacobi stopping threshold that loses a valid principal component; the
+agent-visible task contract is unchanged.
 
 Provide a small C++20 numerical component that accepts row-major floating-point
 observations with an explicit row stride and computes:

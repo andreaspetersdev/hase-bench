@@ -30,12 +30,11 @@ version changes.
 | CPP-018 | Image processing kernel | Medium-hard | 1 | Stride-aware grayscale 3×3 valid-neighbor box blur with exact floor rounding, deterministic borders, padding preservation, dimension checks, and active-range alias rejection. |
 | CPP-019 | Concurrent message recorder | Very hard | 2 | Bounded multi-producer timestamped-byte recorder with a dedicated sink writer, immediate full-queue rejection, gap-free accepted sequence numbers, drain-on-close, and explicit failed/queued message recovery. Controlled sink gates check full-queue, failure, and shutdown behavior; version 2 also checks the values delivered to the sink and failure visibility before close. |
 | CPP-020 | Integrated mini service | Expert | 1 | Five-file C++20 source-aware sensor service: owned configuration, legacy/tagged chunked parsing, transactional batch admission, bounded sink worker, per-source alert statistics, failure recovery, and drain-on-close. Separate hidden component and integration targets check ownership, every split point, rollback/retry, queue capacity, shutdown, and sink failure. |
-| CPP-021 | SIMD PCA / covariance kernel | Expert | 1 | Stride-aware C++20 PCA for up to eight features: population covariance, ordered symmetric eigensystem, sign-canonical axes, projection/reconstruction, finite-input policy, and runtime-dispatched scalar/AVX2 covariance paths. Independent hidden checks cover dimensions, padding, scale, degeneracy, dispatch, and numerical residuals. |
+| CPP-021 | SIMD PCA / covariance kernel | Expert | 2 | Stride-aware C++20 PCA for up to eight features: population covariance, ordered symmetric eigensystem, sign-canonical axes, projection/reconstruction, finite-input policy, and runtime-dispatched scalar/AVX2 covariance paths. Independent hidden checks cover dimensions, padding, full feature width, degeneracy, dispatch, numerical residuals, and tiny but normal covariance scales without absolute eigensolver cutoffs. |
 
 ## Planned tasks
 
-| ID | Title | Difficulty | Intended benchmark scope |
-| --- | --- | --- | --- |
+No further C++ tasks are currently planned.
 
 ## Difficulty policy
 
