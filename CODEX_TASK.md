@@ -618,29 +618,18 @@ Difficulty:
 
 ## CPP-014 — HTTP Request Parser
 
-Implement a deliberately limited HTTP/1.1 request parser.
+Implemented as version 3 in `tasks/cpp/cpp_014_http_request_parser`.
+The C++20 task implements a deliberately limited HTTP/1.1 request parser with
+strict request-line and header grammar, case-insensitive header lookup that
+preserves original spelling, exact `Content-Length` bodies, bounded headers and
+bodies, arbitrary byte splits, pipelined requests, and a permanent error state.
+It does not require TLS, chunked encoding, or a full RFC implementation.
 
-Scope should be clearly specified.
-
-Support approximately:
-
-```text
-request line
-headers
-case-insensitive header names
-Content-Length body
-incremental input
-```
-
-Do not require:
-
-```text
-TLS
-chunked encoding
-full RFC implementation
-```
-
-The important difficulty is incremental parsing: data may arrive split at arbitrary byte boundaries, including within CRLF, header names, and the body. Specify a bounded header/body limit, duplicate `Content-Length` policy, case-insensitive lookup while preserving values, pipelined remainder handling, and a clear error state that cannot be resumed accidentally after malformed input. Hidden tests should systematically replay the same requests at every possible split point.
+Hidden validation replays a binary-body request at every split point, including
+CRLF boundaries, and checks malformed input, duplicate and overflowing decimal
+`Content-Length`, size limits, pipeline order, and preservation of already
+completed requests after a later pipelined request fails. Version 3 adds the
+overflow and completed-request checks under the existing written contract.
 
 Category:
 

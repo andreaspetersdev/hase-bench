@@ -63,8 +63,18 @@ int main() {
     check_error("GET / HTTP/1.1\r\n bad: x\r\n\r\n", ParserError::invalid_header);
     check_error("GET / HTTP/1.1\r\nNo Space: x\r\n\r\n", ParserError::invalid_header);
     check_error("GET / HTTP/1.1\r\nContent-Length: +1\r\n\r\n", ParserError::invalid_content_length);
+    check_error("GET / HTTP/1.1\r\nContent-Length: 9999999999999999999999999999999999999999\r\n\r\n", ParserError::invalid_content_length);
     check_error("GET / HTTP/1.1\r\nContent-Length: 1\r\nContent-Length: 2\r\n\r\nx", ParserError::conflicting_content_length);
     check_error("GET / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n", ParserError::unsupported_transfer_encoding);
+
+    RequestParser completed_before_error(128, 8);
+    assert(!completed_before_error.push("GET /ok HTTP/1.1\r\n\r\nGET /bad HTTP/1.0\r\n\r\n"));
+    assert(completed_before_error.error() == ParserError::invalid_request_line);
+    auto kept = completed_before_error.take_request();
+    assert(kept && kept->method == "GET" && kept->target == "/ok");
+    assert(completed_before_error.empty());
+    assert(!completed_before_error.push("GET /later HTTP/1.1\r\n\r\n"));
+    assert(!completed_before_error.take_request());
 
     RequestParser body_limit(128, 2);
     assert(!body_limit.push("POST / HTTP/1.1\r\nContent-Length: 3\r\n\r\n"));
