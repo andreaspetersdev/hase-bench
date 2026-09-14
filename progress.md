@@ -2,6 +2,8 @@
 
 ## Completed
 
+- FP8 OpenCode selector diagnosis (2026-09-13): three `27BFP8` workspaces passed the bare server model ID `/home/ape/models/hf/Qwen3.8-27B-FP8` to `--model` and failed immediately with OpenCode `UnknownError`/"Unexpected server error" before editing source. `opencode models vllm-hase` lists the required full selector `vllm-hase//home/ape/models/hf/Qwen3.8-27B-FP8`; a direct minimal OpenCode request with that selector and `--variant medium` succeeded. The CLI now rejects a bare absolute model path before workspace creation, and the README documents the correct command. The failed workspaces are retained as configuration non-runs, not model-quality results.
+- Stage 4 — CLI reporting and comparison: `python -m hasebench report` reads saved autonomous run metadata, shows per-configuration scores, per-task summaries, a task/version comparison table, and distinct failure classifications. CSV/JSON exports retain every attempt and mark the latest selected attempt per configuration and task version. Optional task/model filters and file output are documented; framework tests pass (22/22).
 - Repository layout, task discovery, workspace preparation, and framework unit tests.
 - CPP-001 Expression Evaluator, CPP-003 Generic LRU Cache, and CPP-005 SPSC Ring Buffer canonical tasks, each with visible and separate hidden tests.
 - Stage 1 — Framework skeleton verified end-to-end with real MSVC for CPP-001, CPP-003, and CPP-005.
@@ -82,7 +84,7 @@
 
 ## Active
 
-- Stage 3 is complete: all 21 C++ benchmark projects are implemented. Stage 4 CLI reporting and comparison is the next active stage.
+- Stages 1–4 are complete. Stage 5 — Pi agent integration — is the next active stage.
 - CPP-021 autonomous review (2026-09-13): Fresh 27B and A3B OpenCode runs used 3,600-second limits and `medium` variants. The 27B run (`20260913-120916_cpp_021_aut_opencode_27B-64K`) used a configured 65,536-token output limit plus `OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX=65536`; it exited in 1,381.33 seconds with 47,027 generated tokens and passed version-1 visible/hidden validation. Review found its Jacobi eigensolver uses a fixed `1e-15` absolute floor, so it treats a representable `2.5e-16` off-diagonal covariance as zero and loses a rank-one principal component. Version 2 adds a hidden uniform-small-scale regression and an eight-feature dispatch case. The author reference passes version 2; the saved 27B solution passes visible and fails the new hidden eigenvalue assertion. This is a model-quality defect under the existing finite-input/numerical contract, not an easier task.
 - The A3B run (`20260913-121437_cpp_021_aut_opencode_A3B-now`) exited after 1,258.30 agent seconds with a final `reason=length` step and only 236 generated tokens. Both implementation files remain byte-identical to the starter. Independent validation builds but fails visible and hidden suites, so its recorded result is `VISIBLE_TEST_FAILURE` and its qualitative outcome is `NO_SOLUTION`; it does not expose a contract or validator defect. Both run workspaces and logs are retained.
 - CPP-021 SIMD PCA / covariance kernel added as version 2. The stride-aware C++20 starter compiles but omits centering, covariance, eigensolving, and projection. The reference uses a deterministic symmetric Jacobi eigensolver and a separately compiled, runtime-dispatched AVX2 covariance path. The author implementation passes visible and independent hidden MSVC validation, including scalar/AVX2 dispatch, degenerate data, padded stride, eight-feature covariance, tiny-scale eigenpairs, and residuals. A clean unsolved starter builds but fails both suites as intended. Framework tests pass (21/21).
@@ -117,5 +119,4 @@
 
 ## Pending
 
-- Stage 4 — Complete CLI reporting and model comparison.
 - Stages 5–9 — Pi, Rust, general tasks, telemetry, and visual tasks.

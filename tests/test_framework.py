@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -16,7 +16,7 @@ from hasebench.agents import (
     _terminate_process_tree,
     extract_opencode_telemetry,
 )
-from hasebench.cli import _compact_complexity, _print_result, _print_run_result, _run_all, _validate_all
+from hasebench.cli import _compact_complexity, _print_result, _print_run_result, _run_all, _validate_all, main
 from hasebench.runs import AGENT_LOG, AUTONOMOUS_INSTRUCTION, RUN_METADATA, AutonomousRunResult, run_autonomous
 from hasebench.reports import RunSummaryRow, write_markdown_summary
 from hasebench.tasks import discover_tasks, find_task
@@ -31,6 +31,17 @@ from hasebench.workspaces import (
 
 
 class FrameworkTests(unittest.TestCase):
+    def test_autonomous_run_rejects_a_bare_server_model_path_before_launch(self) -> None:
+        errors = StringIO()
+        with patch("sys.argv", ["hasebench", "run", "cpp_001", "--agent", "opencode",
+                                "--model", "/home/ape/models/hf/Qwen3.8-27B-FP8"]), \
+             redirect_stderr(errors), patch("hasebench.cli.run_autonomous") as launch:
+            with self.assertRaises(SystemExit) as exit_result:
+                main()
+        self.assertEqual(exit_result.exception.code, 2)
+        self.assertIn("provider/model selector", errors.getvalue())
+        launch.assert_not_called()
+
     def test_autonomous_prompt_limits_temporary_files_to_workspace_tmp(self) -> None:
         self.assertIn("`TMP` and `TEMP`", AUTONOMOUS_INSTRUCTION)
         self.assertIn("`.hasebench-tmp`", AUTONOMOUS_INSTRUCTION)

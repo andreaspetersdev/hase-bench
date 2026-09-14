@@ -59,6 +59,7 @@ Run one task in a fresh autonomous workspace:
 ```powershell
 python -m hasebench run cpp_001 --agent opencode --model hase/qwen27b-q4 --label 27BQ4
 python -m hasebench run cpp_001 --agent opencode --model llama-hase/qwen3.8-27b --backend llama.cpp --variant xhigh --label 27B-xhigh
+python -m hasebench run cpp_001 --agent opencode --model vllm-hase//home/ape/models/hf/Qwen3.8-27B-FP8 --backend vllm --variant medium --label 27BFP8
 ```
 
 Run every available task, or limit an all-task run to a task ID:
@@ -82,13 +83,24 @@ python -m hasebench run --all --task cpp_003 --agent opencode --model hase/qwen2
 | `--verbose` | No | Print OpenCode, compiler, and test diagnostics. | `--verbose` |
 
 Configure the provider, endpoint, credentials, and any model alias in OpenCode; the benchmark does not hard-code hase connection settings. The selected variant, model/backend labels, and timing are retained in run metadata and reports.
+`--model` must be OpenCode's `provider/model` selector. A server-side path such as `/home/ape/models/hf/Qwen3.8-27B-FP8` is only the model ID; for the configured `vllm-hase` provider, OpenCode lists the full selector as `vllm-hase//home/ape/models/hf/Qwen3.8-27B-FP8`. Check `opencode models vllm-hase` after changing the provider configuration.
 
 Each autonomous run creates a new `_aut_opencode` workspace, runs OpenCode with non-interactive JSON output and permission auto-approval inside that workspace, then validates it with the same visible and hidden CMake validators as manual runs. `TEMP` and `TMP` are redirected into the workspace so ordinary agent-created temporary files are preserved there too. The workspace is always preserved. It contains `hasebench-agent.log` and `hasebench-run.json`, recording the selected configuration, model/backend labels, agent exit status/timing, validation commands/results, and final classification. Use `--verbose` to print captured agent and validation diagnostics.
 
 After every autonomous task, the console prints its task ID and title, workspace, model, build, visible-test, hidden-test, and final result. It also prints OpenCode's maximum observed context use, generated-token rate, estimated model time, agent elapsed time, and full benchmark elapsed time. The model time is an estimate derived from OpenCode step timing with recorded tool time removed; it is the suitable initial value for an electricity-time estimate, while full time includes workspace preparation and authoritative validation. If an OpenCode version does not emit JSON telemetry, those fields are explicitly shown as unavailable. Every command also writes a Markdown summary table under `results/`; `run --all` produces one aggregate table for the batch, while a single-task run produces a one-row table. The Markdown table and per-run JSON metadata both retain the task title. These generated reports are ignored by Git.
 
-Currently available tasks are CPP-001 (expression evaluator), CPP-002 (CSV parser), CPP-003 (generic LRU cache), CPP-004 (thread pool), CPP-005 (SPSC ring buffer), CPP-006 (binary serialization), CPP-007 (template lifetime repair), CPP-008 (deadlock-free account transfers), CPP-009 (JSON-like configuration merge), and CPP-010 (graph dependency resolver). See [progress.md](progress.md) for the current stage.
-See [TASKS.md](TASKS.md) for the maintained implemented/planned C++ task catalogue and difficulty rationale.
+## Compare saved runs
+
+```powershell
+python -m hasebench report
+python -m hasebench report --task cpp_021
+python -m hasebench report --model llama-hase/qwen3.8-27b --format csv --output results/27b.csv
+python -m hasebench report --format json --output results/comparison.json
+```
+
+`report` reads only completed `hasebench-run.json` files in direct children of `work/`; it does not launch agents or revalidate code. It shows a per-model score, per-task summary, and task-by-model outcome table. A model configuration includes the agent, exact OpenCode model selector, backend, and variant. Each score uses the latest saved attempt for that configuration and **task version**. Older attempts remain in CSV/JSON exports, with a `selected` flag in CSV. This preserves distinct failure classifications and prevents different task versions from being silently combined. Scores have their own task counts; compare models on shared task/version rows when their coverage differs. Corrupt run metadata is skipped with a warning.
+
+The 21 C++ tasks are listed in [TASKS.md](TASKS.md). See [progress.md](progress.md) for the current stage.
 
 Prompt example:
 ```markdown

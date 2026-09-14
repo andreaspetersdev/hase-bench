@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from .agents import OpenCodeAgentRunner
+from .history import load_runs, render_csv, render_json, render_table, report_data
 from .reports import RunSummaryRow, summary_row, write_markdown_summary
 from .runs import AGENT_LOG, RUN_METADATA, AutonomousRunResult, run_autonomous
 from .tasks import discover_tasks, find_task
@@ -40,6 +41,11 @@ def _parser() -> argparse.ArgumentParser:
     validate_target.add_argument("--all", action="store_true", help="validate marked workspaces directly under work/")
     validate.add_argument("--task", help="limit --all to one task ID")
     validate.add_argument("--verbose", action="store_true", help="print CMake and test output")
+    report = commands.add_parser("report", help="compare saved autonomous runs without rerunning them")
+    report.add_argument("--task", help="limit to a task ID")
+    report.add_argument("--model", help="limit to an exact OpenCode model/configuration selector")
+    report.add_argument("--format", choices=["table", "csv", "json"], default="table")
+    report.add_argument("--output", type=Path, help="write the report to a file instead of stdout")
     return parser
 
 
@@ -62,6 +68,9 @@ def main() -> int:
             parser.error("--task is only available with validate --all")
     if args.command == "run" and args.task_filter and not args.all:
         parser.error("--task is only available with run --all")
+    if args.command == "run" and args.model.startswith("/"):
+        parser.error("--model needs an OpenCode provider/model selector, not a server-side absolute path; "
+                     "use 'opencode models' to find the configured selector")
     try:
         if args.command == "list":
             for task in discover_tasks():
@@ -81,6 +90,22 @@ def main() -> int:
                 return _run_all(args.task_filter, args)
             exit_code, _ = _run_one(find_task(args.task), args)
             return exit_code
+        if args.command == "report":
+            runs, errors = load_runs()
+            for error in errors:
+                print(f"warning: {error}", file=sys.stderr)
+            if args.task:
+                runs = [run for run in runs if run.task == args.task.lower()]
+            if args.model:
+                runs = [run for run in runs if run.model == args.model]
+            data = report_data(runs)
+            content = {"table": render_table, "csv": render_csv, "json": render_json}[args.format](data)
+            if args.output:
+                args.output.write_text(content, encoding="utf-8")
+                print(f"Report: {args.output}")
+            else:
+                print(content, end="")
+            return 0
         if args.all:
             return _validate_all(args.task, args.verbose)
         return _validate_one(args.workspace.resolve(), args.verbose)
