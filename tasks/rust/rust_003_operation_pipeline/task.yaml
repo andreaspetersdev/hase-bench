@@ -1,0 +1,8 @@
+{
+  "id": "rust_003",
+  "title": "Context-rich operation pipeline",
+  "language": "rust",
+  "standard": "Rust 2024",
+  "difficulty": "easy",
+  "version": 1
+}

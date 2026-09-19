@@ -1162,13 +1162,23 @@ the specified lower/upper `size_hint`, and conditionally implement
 `FusedIterator`. Independent tests cover each of those generic and consumption
 invariants.
 
+`rust_003` implements the focused error-propagation task as a sequential
+counter-update pipeline. Text operations are parsed before existing counters
+are looked up and checked signed additions are applied. Failures preserve a
+zero-based operation index and typed parse, lookup, or update causes through
+`From` and a two-level `Error::source` chain. Earlier successful operations
+remain applied, while the failing and later operations make no changes.
+Independent tests cover the explicit precedence matrix, trimming and key
+semantics, both integer limits, partial progress, empty input, and public trait
+contracts. It remains intentionally Low severity without rollback or
+concurrency.
+
 The remaining compact Rust suite is reserved as follows. These are planning
 contracts only; do not create their starter projects until each preceding
 increment is reviewed.
 
 | ID | Severity | Planned task and required review boundary |
 | --- | --- | --- |
-| `rust_003` | Low | Context-rich operation pipeline. Exercise typed `Result` propagation, `From`, stable operation indexes, error precedence, and `Error::source` without concurrency or a large parser. Its narrowness is intentional. |
 | `rust_004` | High | Bounded channel worker. Cover multi-producer admission, move-only jobs, ordered accepted work, deterministic backpressure, drain/repeated close, worker failure, and recovery of unfinished accepted jobs using controlled gates rather than sleeps. |
 | `rust_005` | High | Incremental binary frame parser. Cover every header/payload split, multiple frames per chunk, size/overflow policy, arbitrary payload bytes, completed-frame preservation, explicit error precedence, and permanent failure state. |
 | `rust_006` | High | Trait-driven storage refactor. Require an object-safe backend/transaction boundary across multiple files, deterministic middleware order, typed errors, rollback, owned results, and hidden injected backends without downcasting. |
