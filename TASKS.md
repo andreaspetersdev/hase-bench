@@ -41,6 +41,7 @@ No further C++ tasks are currently planned.
 
 | ID | Title | Difficulty | Status | Scope and review focus |
 | --- | --- | --- | --- | --- |
+| RUST-001 (`rust_001`) | Owned configuration snapshot repair | Medium | Implemented (v1) | Rust 2024 ownership/lifetime repair. The starter's behavior works while the source remains alive, but its public snapshot borrows parsed text. The required result owns entries, accepts owned updates, and clones independently. Hidden compilation and runtime checks enforce source independence, ownership transfer, preserved ordering, and parsing edge cases. |
 | RUST-RSYNC (`rust_rsync`) | Cross-platform rsync clone | Expert / long horizon | Planned | One Rust project implementing a full functional rsync clone for Windows and Linux. Pin an upstream rsync release and its official man pages when authoring the task; cover local, remote-shell, and daemon transfers, wire interoperability, delta updates, filters, deletion, metadata, resume, diagnostics, and exit behavior. Build after the initial Rust pipeline is proven, using the design, implementation, review, test, and progress gates in [RUST_RSYNC_PLAN.md](RUST_RSYNC_PLAN.md). |
 
 ## Difficulty policy

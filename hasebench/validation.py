@@ -127,31 +127,33 @@ def validate_rust(workspace: Path, task: Task) -> ValidationResult:
     if build.returncode != 0:
         return ValidationResult(task.identifier, build, None, None, "COMPILATION_FAILURE")
 
-    visible = _run(
-        ["cargo", "test", "--locked", "--manifest-path", str(manifest), "--target-dir", str(build_dir)],
-        workspace,
-        60,
-    )
+    visible_arguments = [
+        "cargo", "test", "--locked", "--manifest-path", str(manifest), "--target-dir", str(build_dir)
+    ]
+    visible_compile = _run([*visible_arguments, "--no-run"], workspace, 120)
+    if visible_compile.returncode != 0:
+        return ValidationResult(task.identifier, visible_compile, None, None, "COMPILATION_FAILURE")
+    visible = _run(visible_arguments, workspace, 60)
 
     validator_manifest = task.root / "validator" / "Cargo.toml"
     hidden_build_dir = workspace / "build" / "hasebench-hidden"
     workspace_path = json.dumps(workspace.resolve().as_posix())
     workspace_patch = f"patch.crates-io.{task.identifier}.path={workspace_path}"
-    hidden = _run(
-        [
-            "cargo",
-            "test",
-            "--locked",
-            "--manifest-path",
-            str(validator_manifest),
-            "--target-dir",
-            str(hidden_build_dir),
-            "--config",
-            workspace_patch,
-        ],
-        workspace,
-        90,
-    )
+    hidden_arguments = [
+        "cargo",
+        "test",
+        "--locked",
+        "--manifest-path",
+        str(validator_manifest),
+        "--target-dir",
+        str(hidden_build_dir),
+        "--config",
+        workspace_patch,
+    ]
+    hidden_compile = _run([*hidden_arguments, "--no-run"], workspace, 120)
+    if hidden_compile.returncode != 0:
+        return ValidationResult(task.identifier, hidden_compile, visible, None, "COMPILATION_FAILURE")
+    hidden = _run(hidden_arguments, workspace, 90)
     return ValidationResult(task.identifier, build, visible, hidden)
 
 

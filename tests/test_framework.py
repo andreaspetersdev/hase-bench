@@ -30,6 +30,7 @@ from hasebench.validation import (
     validate_task,
 )
 from hasebench.workspaces import (
+    MSVC_RUNTIME_POLICY,
     WORKSPACE_METADATA,
     WorkspaceCandidate,
     discover_workspaces,
@@ -56,8 +57,16 @@ class FrameworkTests(unittest.TestCase):
         self.assertIn("temporary\nfiles or directories elsewhere", AUTONOMOUS_INSTRUCTION)
 
     def test_cpp_tasks_are_discovered(self) -> None:
-        self.assertEqual([task.identifier for task in discover_tasks()], [f"cpp_{index:03}" for index in range(1, 22)])
+        cpp_tasks = [task.identifier for task in discover_tasks() if task.language == "cpp"]
+        self.assertEqual(cpp_tasks, [f"cpp_{index:03}" for index in range(1, 22)])
         self.assertEqual(find_task("cpp_003").standard, "c++20")
+
+    def test_rust_tasks_are_discovered(self) -> None:
+        self.assertEqual(
+            [task.identifier for task in discover_tasks() if task.language == "rust"],
+            ["rust_001"],
+        )
+        self.assertEqual(find_task("rust_001").standard, "Rust 2024")
 
     def test_workspace_contains_no_hidden_validator(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -78,6 +87,15 @@ class FrameworkTests(unittest.TestCase):
             self.assertFalse((workspace / "hidden_tests.cpp").exists())
             self.assertEqual(task_for_workspace(workspace), "cpp_001")
             self.assertIn('"workspace_id"', (workspace / WORKSPACE_METADATA).read_text(encoding="utf-8"))
+
+    def test_rust_workspace_omits_cpp_runtime_policy_and_hidden_validator(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = prepare_workspace(find_task("rust_001"), Path(temporary))
+            self.assertTrue((workspace / "Cargo.toml").is_file())
+            self.assertTrue((workspace / "Cargo.lock").is_file())
+            self.assertFalse((workspace / MSVC_RUNTIME_POLICY).exists())
+            self.assertFalse((workspace / "validator").exists())
+            self.assertEqual(task_for_workspace(workspace), "rust_001")
 
     def test_preparations_are_never_reused(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -171,7 +189,7 @@ class FrameworkTests(unittest.TestCase):
             result = validate_rust(workspace, task)
 
         self.assertEqual(result.outcome, "SUCCESS")
-        self.assertEqual(run.call_count, 3)
+        self.assertEqual(run.call_count, 5)
         self.assertEqual(run.call_args_list[0].args, (
             [
                 "cargo", "build", "--locked", "--manifest-path", str(workspace / "Cargo.toml"),
@@ -180,7 +198,8 @@ class FrameworkTests(unittest.TestCase):
             workspace,
             120,
         ))
-        hidden_arguments = run.call_args_list[2].args[0]
+        self.assertEqual(run.call_args_list[1].args[0][-1], "--no-run")
+        hidden_arguments = run.call_args_list[4].args[0]
         self.assertEqual(hidden_arguments[:6], [
             "cargo", "test", "--locked", "--manifest-path", str(task.root / "validator" / "Cargo.toml"),
             "--target-dir",
@@ -188,6 +207,7 @@ class FrameworkTests(unittest.TestCase):
         self.assertEqual(hidden_arguments[6], str(workspace / "build" / "hasebench-hidden"))
         self.assertEqual(hidden_arguments[7], "--config")
         self.assertTrue(hidden_arguments[8].startswith("patch.crates-io.rust_001.path="))
+        self.assertEqual(run.call_args_list[3].args[0], [*hidden_arguments, "--no-run"])
 
     def test_rust_validation_stops_after_a_build_failure(self) -> None:
         task = Task("rust_001", "Rust task", "rust", "rust-2024", "easy", 1, Path("task"))
@@ -196,6 +216,17 @@ class FrameworkTests(unittest.TestCase):
             result = validate_rust(Path("workspace"), task)
         self.assertEqual(result.outcome, "COMPILATION_FAILURE")
         self.assertEqual(run.call_count, 1)
+
+    def test_rust_validation_classifies_hidden_test_compilation_failure(self) -> None:
+        task = Task("rust_001", "Rust task", "rust", "Rust 2024", "medium", 1, Path("task"))
+        success = CommandResult(0, "", 0.0)
+        failure = CommandResult(1, "type error", 0.0)
+        with patch("hasebench.validation._run", side_effect=[success, success, success, failure]) as run:
+            result = validate_rust(Path("workspace"), task)
+        self.assertEqual(result.outcome, "COMPILATION_FAILURE")
+        self.assertIs(result.visible, success)
+        self.assertIsNone(result.hidden)
+        self.assertEqual(run.call_count, 4)
 
     def test_opencode_runner_uses_non_interactive_workspace_command(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -287,11 +318,14 @@ class FrameworkTests(unittest.TestCase):
             "task_filter": None, "agent": "opencode", "model": "test", "backend": "test", "variant": None,
         })()
         row = object()
-        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row)] + [(0, row)] * 19) as run_one, \
+        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row)] + [(0, row)] * 20) as run_one, \
              patch("hasebench.cli.write_markdown_summary"), redirect_stdout(StringIO()) as output:
             self.assertEqual(_run_all(None, arguments), 1)
         self.assertIn("Summary:", output.getvalue())
-        self.assertEqual([call.args[0].identifier for call in run_one.call_args_list], [f"cpp_{index:03}" for index in range(1, 22)])
+        self.assertEqual(
+            [call.args[0].identifier for call in run_one.call_args_list],
+            [f"cpp_{index:03}" for index in range(1, 22)] + ["rust_001"],
+        )
 
     def test_markdown_summary_contains_a_result_table(self) -> None:
         row = RunSummaryRow(

@@ -1,6 +1,6 @@
 # Hase Bench
 
-The current milestone supports manual and autonomous C++ benchmark runs through OpenCode.
+The current milestone supports manual and autonomous C++ and Rust benchmark runs through OpenCode.
 
 ## Python environment
 
@@ -108,7 +108,7 @@ python -m hasebench report --format json --output results/comparison.json
 
 `report` reads only completed `hasebench-run.json` files in direct children of `work/`; it does not launch agents or revalidate code. It shows a per-model score, per-task summary, and task-by-model outcome table. A model configuration includes the agent, exact OpenCode model selector, backend, and variant. Each score uses the latest saved attempt for that configuration and **task version**. Older attempts remain in CSV/JSON exports, with a `selected` flag in CSV. This preserves distinct failure classifications and prevents different task versions from being silently combined. Scores have their own task counts; compare models on shared task/version rows when their coverage differs. Corrupt run metadata is skipped with a warning.
 
-The 21 C++ tasks are listed in [TASKS.md](TASKS.md). See [progress.md](progress.md) for the current stage.
+The 21 C++ tasks and initial Rust task are listed in [TASKS.md](TASKS.md). See [progress.md](progress.md) for the current stage.
 
 Prompt example:
 ```markdown

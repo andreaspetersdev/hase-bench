@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 build/
+target/
 work/*
 !work/.gitkeep
 results/*

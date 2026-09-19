@@ -1150,6 +1150,14 @@ trait-based architecture
 async service component
 ```
 
+`rust_001` implements the first ownership/lifetime repair task as an owned
+configuration snapshot. Its starter intentionally exposes lifetime-parameterized
+entries borrowed from the parse input. The required Rust 2024 API owns parsed
+keys and values, accepts owned updates, and produces independent clones. Visible
+tests cover parsing and ordinary updates; the external Cargo validator enforces
+source destruction, owned arguments, clone independence, ordering, and edge
+cases.
+
 Reserve `rust_rsync` as a single expert, long-horizon cross-platform rsync-clone
 task. The agent must build a complete functional Rust implementation, runnable
 on both Windows and Linux, rather than a local-only file copier. At task

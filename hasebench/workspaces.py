@@ -56,10 +56,11 @@ def prepare_workspace(
         suffix += 1
     shutil.copytree(task.root / "starter", workspace)
     shutil.copy2(task.root / "TASK.md", workspace / "TASK.md")
-    # OpenCode may run a failing Debug test itself.  Make that process
-    # non-interactive too, rather than allowing an MSVC CRT modal dialog to
-    # consume the autonomous-run timeout.
-    shutil.copy2(Path(__file__).with_name("msvc_noninteractive_assert.hpp"), workspace / MSVC_RUNTIME_POLICY)
+    if task.language == "cpp":
+        # OpenCode may run a failing Debug test itself.  Make that process
+        # non-interactive too, rather than allowing an MSVC CRT modal dialog to
+        # consume the autonomous-run timeout.
+        shutil.copy2(Path(__file__).with_name("msvc_noninteractive_assert.hpp"), workspace / MSVC_RUNTIME_POLICY)
     # A workspace must be its own repository.  This prevents tools that search
     # Git ancestors for project instructions from reaching the benchmark
     # repository and its author-only material.
