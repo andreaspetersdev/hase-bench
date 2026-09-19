@@ -17,10 +17,17 @@ from hasebench.agents import (
     extract_opencode_telemetry,
 )
 from hasebench.cli import _compact_complexity, _print_result, _print_run_result, _run_all, _validate_all, main
+from hasebench.models import Task
 from hasebench.runs import AGENT_LOG, AUTONOMOUS_INSTRUCTION, RUN_METADATA, AutonomousRunResult, run_autonomous
 from hasebench.reports import RunSummaryRow, write_markdown_summary
 from hasebench.tasks import discover_tasks, find_task
-from hasebench.validation import CommandResult, ValidationResult, _cmake_debug_flags, _deduplicate_environment
+from hasebench.validation import (
+    CommandResult,
+    ValidationResult,
+    _cmake_debug_flags,
+    _deduplicate_environment,
+    validate_task,
+)
 from hasebench.workspaces import (
     WORKSPACE_METADATA,
     WorkspaceCandidate,
@@ -131,7 +138,7 @@ class FrameworkTests(unittest.TestCase):
         candidate = WorkspaceCandidate(Path("work/run-A"), "cpp_001", "run-A")
         output = StringIO()
         with patch("hasebench.cli.discover_workspaces", return_value=[candidate]), \
-             patch("hasebench.cli.validate_cpp", return_value=result), \
+             patch("hasebench.cli.validate_task", return_value=result), \
              redirect_stdout(output):
             self.assertEqual(_validate_all(None, False), 0)
         self.assertIn("run-A / cpp_001 - Expression evaluator (M): SUCCESS", output.getvalue())
@@ -141,6 +148,19 @@ class FrameworkTests(unittest.TestCase):
         self.assertEqual(_compact_complexity("medium"), "M")
         self.assertEqual(_compact_complexity("hard"), "H")
         self.assertEqual(_compact_complexity("very hard"), "VH")
+
+    def test_validation_dispatches_cpp_tasks_to_the_cpp_validator(self) -> None:
+        task = find_task("cpp_001")
+        expected = object()
+        with patch("hasebench.validation.validate_cpp", return_value=expected) as validate_cpp:
+            result = validate_task(Path("workspace"), task)
+        self.assertIs(result, expected)
+        validate_cpp.assert_called_once_with(Path("workspace"), task)
+
+    def test_validation_rejects_an_unregistered_language(self) -> None:
+        task = Task("rust_001", "Rust task", "rust", "rust-2024", "easy", 1, Path("task"))
+        with self.assertRaisesRegex(ValueError, "No validator is available for rust"):
+            validate_task(Path("workspace"), task)
 
     def test_opencode_runner_uses_non_interactive_workspace_command(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -212,7 +232,7 @@ class FrameworkTests(unittest.TestCase):
             workspace = Path(temporary) / "autonomous-workspace"
             workspace.mkdir()
             with patch("hasebench.runs.prepare_workspace", return_value=workspace), \
-                 patch("hasebench.runs.validate_cpp", return_value=validation):
+                 patch("hasebench.runs.validate_task", return_value=validation):
                 result = run_autonomous(
                     find_task("cpp_001"), FakeRunner(), "hase/qwen", "Qwen 27B", "llama.cpp", 900, "A3B", "xhigh"
                 )

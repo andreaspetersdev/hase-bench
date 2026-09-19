@@ -9,7 +9,7 @@ from .history import load_runs, render_csv, render_json, render_table, report_da
 from .reports import RunSummaryRow, summary_row, write_markdown_summary
 from .runs import AGENT_LOG, RUN_METADATA, AutonomousRunResult, run_autonomous
 from .tasks import discover_tasks, find_task
-from .validation import validate_cpp
+from .validation import validate_task
 from .workspaces import discover_workspaces, prepare_workspace, task_for_workspace
 
 
@@ -115,8 +115,6 @@ def main() -> int:
 
 
 def _run_one(task: object, args: argparse.Namespace, write_summary: bool = True) -> tuple[int, RunSummaryRow]:
-    if task.language != "cpp":
-        raise ValueError(f"No autonomous runner is available for {task.language}")
     result = run_autonomous(
         task,
         OpenCodeAgentRunner(),
@@ -197,9 +195,7 @@ def _format_generation(tokens: int | None, speed: float | None) -> str:
 
 def _validate_one(workspace: Path, verbose: bool) -> int:
     task = find_task(task_for_workspace(workspace))
-    if task.language != "cpp":
-        raise ValueError(f"No validator is available for {task.language}")
-    result = validate_cpp(workspace, task)
+    result = validate_task(workspace, task)
     _print_result(result, task.title, _compact_complexity(task.difficulty), verbose)
     return 0 if result.outcome == "SUCCESS" else 1
 
@@ -226,9 +222,7 @@ def _validate_all(task_filter: str | None, verbose: bool) -> int:
                 task = find_task(task_id)
                 complexity = _compact_complexity(task.difficulty)
                 title = task.title
-                if task.language != "cpp":
-                    raise ValueError(f"No validator is available for {task.language}")
-                result = validate_cpp(candidate.path, task)
+                result = validate_task(candidate.path, task)
                 outcome = result.outcome
                 visible = _status(result.visible)
                 hidden = _status(result.hidden)

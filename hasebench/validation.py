@@ -113,3 +113,15 @@ def validate_cpp(workspace: Path, task: Task) -> ValidationResult:
         return ValidationResult(task.identifier, hidden_build_result, visible, None, "COMPILATION_FAILURE")
     hidden = _run(["ctest", "--test-dir", str(hidden_build), "-C", "Debug", "--output-on-failure"], workspace, 90)
     return ValidationResult(task.identifier, configure, visible, hidden)
+
+
+def validate_task(workspace: Path, task: Task) -> ValidationResult:
+    """Validate a task with the implementation registered for its language."""
+    validators = {
+        "cpp": validate_cpp,
+    }
+    try:
+        validator = validators[task.language]
+    except KeyError as error:
+        raise ValueError(f"No validator is available for {task.language}") from error
+    return validator(workspace, task)

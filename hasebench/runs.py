@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .agents import AgentRunRequest, AgentRunResult, AgentRunner
 from .models import Task
-from .validation import CommandResult, ValidationResult, validate_cpp
+from .validation import CommandResult, ValidationResult, validate_task
 from .workspaces import prepare_workspace
 
 AUTONOMOUS_INSTRUCTION = """Read TASK.md and solve the task.
@@ -54,7 +54,7 @@ def run_autonomous(
             workspace, AUTONOMOUS_INSTRUCTION, model_configuration, timeout_seconds, workspace / AGENT_LOG, variant
         )
     )
-    validation = validate_cpp(workspace, task)
+    validation = validate_task(workspace, task)
     outcome = agent.outcome if agent.outcome != "SUCCESS" else validation.outcome
     result = AutonomousRunResult(workspace, agent, validation, outcome, time.monotonic() - started)
     _write_metadata(result, task, model_configuration, model_name, backend, timeout_seconds, variant)
