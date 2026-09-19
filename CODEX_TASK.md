@@ -1160,6 +1160,14 @@ cases. Version 2 also compiles explicit checks for every required public trait
 and verifies that case-insensitive key matching remains ASCII-only; the
 agent-visible contract is unchanged from version 1.
 
+`rust_002` implements the generic-iterator task as a lazy sorted merge join.
+The adaptor accepts differently typed input iterators plus a mutable comparator
+and yields left-only, right-only, or paired values. It must support move-only
+items, pair duplicates one-for-one, buffer at most one item per side, provide
+the specified lower/upper `size_hint`, and conditionally implement
+`FusedIterator`. Independent tests cover each of those generic and consumption
+invariants.
+
 Reserve `rust_rsync` as a single expert, long-horizon cross-platform rsync-clone
 task. The agent must build a complete functional Rust implementation, runnable
 on both Windows and Linux, rather than a local-only file copier. At task

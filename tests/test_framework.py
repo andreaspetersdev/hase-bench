@@ -64,9 +64,10 @@ class FrameworkTests(unittest.TestCase):
     def test_rust_tasks_are_discovered(self) -> None:
         self.assertEqual(
             [task.identifier for task in discover_tasks() if task.language == "rust"],
-            ["rust_001"],
+            ["rust_001", "rust_002"],
         )
         self.assertEqual(find_task("rust_001").standard, "Rust 2024")
+        self.assertEqual(find_task("rust_002").standard, "Rust 2024")
 
     def test_workspace_contains_no_hidden_validator(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -318,13 +319,13 @@ class FrameworkTests(unittest.TestCase):
             "task_filter": None, "agent": "opencode", "model": "test", "backend": "test", "variant": None,
         })()
         row = object()
-        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row)] + [(0, row)] * 20) as run_one, \
+        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row)] + [(0, row)] * 21) as run_one, \
              patch("hasebench.cli.write_markdown_summary"), redirect_stdout(StringIO()) as output:
             self.assertEqual(_run_all(None, arguments), 1)
         self.assertIn("Summary:", output.getvalue())
         self.assertEqual(
             [call.args[0].identifier for call in run_one.call_args_list],
-            [f"cpp_{index:03}" for index in range(1, 22)] + ["rust_001"],
+            [f"cpp_{index:03}" for index in range(1, 22)] + ["rust_001", "rust_002"],
         )
 
     def test_markdown_summary_contains_a_result_table(self) -> None:
