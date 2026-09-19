@@ -1173,13 +1173,22 @@ semantics, both integer limits, partial progress, empty input, and public trait
 contracts. It remains intentionally Low severity without rollback or
 concurrency.
 
+`rust_004` implements the bounded channel worker as a generic Rust 2024
+component. Multi-producer non-blocking admission assigns gap-free sequence
+numbers only to accepted move-only jobs. One dedicated thread borrows jobs for
+handling, publishes successful results in order, drains on repeated close and
+drop, and on a typed handler failure recovers the failed job followed by every
+queued accepted job. Capacity counts only waiting jobs, not the in-flight job.
+Visible and independent hidden tests use channel gates rather than sleeps to
+prove backpressure, sequence continuity, ordered concurrent admission, drain,
+failure stop/recovery, and ownership preservation.
+
 The remaining compact Rust suite is reserved as follows. These are planning
 contracts only; do not create their starter projects until each preceding
 increment is reviewed.
 
 | ID | Severity | Planned task and required review boundary |
 | --- | --- | --- |
-| `rust_004` | High | Bounded channel worker. Cover multi-producer admission, move-only jobs, ordered accepted work, deterministic backpressure, drain/repeated close, worker failure, and recovery of unfinished accepted jobs using controlled gates rather than sleeps. |
 | `rust_005` | High | Incremental binary frame parser. Cover every header/payload split, multiple frames per chunk, size/overflow policy, arbitrary payload bytes, completed-frame preservation, explicit error precedence, and permanent failure state. |
 | `rust_006` | High | Trait-driven storage refactor. Require an object-safe backend/transaction boundary across multiple files, deterministic middleware order, typed errors, rollback, owned results, and hidden injected backends without downcasting. |
 | `rust_007` | Very high | Concurrent single-flight cache. Combine sharding, bounded capacity, caller-controlled TTL, per-key loading, LRU-style eviction, disjoint-key progress, failure/panic wake-up, and cleanup under deterministic scheduling. |

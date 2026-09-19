@@ -1,0 +1,8 @@
+{
+  "id": "rust_004",
+  "title": "Bounded channel worker",
+  "language": "rust",
+  "standard": "Rust 2024",
+  "difficulty": "hard",
+  "version": 1
+}
