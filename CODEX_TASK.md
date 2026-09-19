@@ -1137,18 +1137,12 @@ tasks/rust/
 
 and a `RustCargoValidator`.
 
-Initial Rust benchmark ideas include:
-
-```text
-ownership/lifetime repair
-generic iterator implementation
-channel-based worker
-concurrent cache
-parser
-error propagation
-trait-based architecture
-async service component
-```
+Use a four-level Rust planning severity scale: `low`, `medium`, `high`, and
+`very high`. These map to task metadata `easy`, `medium`, `hard`, and
+`very hard` when the task is implemented. Severity reflects the number and
+interaction of correctness invariants, not source size or test volume. The
+planned suite must contain accessible work as well as multiple High and
+Very-high tasks capable of separating stronger models.
 
 `rust_001` implements the first ownership/lifetime repair task as an owned
 configuration snapshot. Its starter intentionally exposes lifetime-parameterized
@@ -1168,7 +1162,26 @@ the specified lower/upper `size_hint`, and conditionally implement
 `FusedIterator`. Independent tests cover each of those generic and consumption
 invariants.
 
-Reserve `rust_rsync` as a single expert, long-horizon cross-platform rsync-clone
+The remaining compact Rust suite is reserved as follows. These are planning
+contracts only; do not create their starter projects until each preceding
+increment is reviewed.
+
+| ID | Severity | Planned task and required review boundary |
+| --- | --- | --- |
+| `rust_003` | Low | Context-rich operation pipeline. Exercise typed `Result` propagation, `From`, stable operation indexes, error precedence, and `Error::source` without concurrency or a large parser. Its narrowness is intentional. |
+| `rust_004` | High | Bounded channel worker. Cover multi-producer admission, move-only jobs, ordered accepted work, deterministic backpressure, drain/repeated close, worker failure, and recovery of unfinished accepted jobs using controlled gates rather than sleeps. |
+| `rust_005` | High | Incremental binary frame parser. Cover every header/payload split, multiple frames per chunk, size/overflow policy, arbitrary payload bytes, completed-frame preservation, explicit error precedence, and permanent failure state. |
+| `rust_006` | High | Trait-driven storage refactor. Require an object-safe backend/transaction boundary across multiple files, deterministic middleware order, typed errors, rollback, owned results, and hidden injected backends without downcasting. |
+| `rust_007` | Very high | Concurrent single-flight cache. Combine sharding, bounded capacity, caller-controlled TTL, per-key loading, LRU-style eviction, disjoint-key progress, failure/panic wake-up, and cleanup under deterministic scheduling. |
+| `rust_008` | Very high | Cancellation-safe async service. With a pinned runtime, combine bounded admission, multiplexing, per-stream ordering, injected-clock deadlines, cancellation, graceful shutdown, and transport failure using deterministic fake time and transport. |
+
+For High tasks, the design review must identify at least two interacting state
+or ownership boundaries and the hidden validator must test their failure paths.
+For Very-high tasks, write the state/concurrency model before the starter and
+use deterministic orchestration to prove progress, cleanup, and recovery. A
+larger random stress loop alone does not justify Very-high severity.
+
+Reserve `rust_rsync` as a single Very-high, long-horizon cross-platform rsync-clone
 task. The agent must build a complete functional Rust implementation, runnable
 on both Windows and Linux, rather than a local-only file copier. At task
 authoring time, pin an upstream rsync release and its official `rsync(1)` and

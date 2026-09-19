@@ -39,16 +39,41 @@ No further C++ tasks are currently planned.
 
 ### Rust
 
-| ID | Title | Difficulty | Status | Scope and review focus |
+Rust uses a four-level planning severity scale: **Low**, **Medium**, **High**,
+and **Very high**. When a planned task is implemented, these map to the
+framework's existing `difficulty` metadata values `easy`, `medium`, `hard`, and
+`very hard`. The labels measure interacting correctness obligations, not code
+volume or test count.
+
+| ID | Title | Severity | Status | Scope and review focus |
 | --- | --- | --- | --- | --- |
 | RUST-001 (`rust_001`) | Owned configuration snapshot repair | Medium | Implemented (v2) | Rust 2024 ownership/lifetime repair. The starter's behavior works while the source remains alive, but its public snapshot borrows parsed text. The required result owns entries, accepts owned updates, and clones independently. Hidden compilation and runtime checks enforce source independence, ownership transfer, required public traits, ASCII-only key folding, preserved ordering, and parsing edge cases. Version 2 closes trait and ASCII-boundary coverage gaps found during the first autonomous review without changing the agent-visible contract. |
 | RUST-002 (`rust_002`) | Lazy generic merge-join iterator | Medium | Implemented (v1) | Rust 2024 generic iterator implementation. Merge two differently typed sorted streams lazily into left/right/both outputs without `Clone` or `Ord` item bounds. Hidden tests cover move-only values, required output traits, stateful comparators, duplicate pairing, one-item lookahead, comparator exhaustion, complete `size_hint` bounds, and conditional `FusedIterator`. |
-| RUST-RSYNC (`rust_rsync`) | Cross-platform rsync clone | Expert / long horizon | Planned | One Rust project implementing a full functional rsync clone for Windows and Linux. Pin an upstream rsync release and its official man pages when authoring the task; cover local, remote-shell, and daemon transfers, wire interoperability, delta updates, filters, deletion, metadata, resume, diagnostics, and exit behavior. Build after the initial Rust pipeline is proven, using the design, implementation, review, test, and progress gates in [RUST_RSYNC_PLAN.md](RUST_RSYNC_PLAN.md). |
+| RUST-003 (`rust_003`) | Context-rich operation pipeline | Low | Planned | Focused error-propagation task. Compose parsing, lookup, and update operations without panics; preserve typed causes and operation indexes through `Result`, `From`, and `Error::source`. Hidden tests should cover the small error-precedence matrix, empty input, and source chaining. Keep it deliberately narrow so weaker models have an accessible Rust task. |
+| RUST-004 (`rust_004`) | Bounded channel worker | High | Planned | Multi-producer worker owning a dedicated thread and bounded channel. Define admission/backpressure, move-only jobs, ordered accepted work, result delivery, drain-on-close, repeated close, worker failure, and recovery of accepted-but-unfinished jobs. Use gates/barriers rather than timing sleeps to validate full queues, shutdown, and failure deterministically. |
+| RUST-005 (`rust_005`) | Incremental binary frame parser | High | Planned | Chunked state machine for a length-prefixed binary protocol with split headers/payloads, multiple frames per chunk, hard size limits, arbitrary bytes, explicit error precedence, completed-frame preservation, and an irreversible failed state. Hidden tests should replay every split point and adversarial lengths without relying on external crates. |
+| RUST-006 (`rust_006`) | Trait-driven storage refactor | High | Planned | Multi-file architecture/refactoring task. Replace a closed concrete backend with an object-safe storage/transaction interface while preserving legacy behavior, typed errors, deterministic middleware order, rollback, and caller-owned data. Hidden tests should inject independent backends and failures without downcasting or task-specific hooks. |
+| RUST-007 (`rust_007`) | Concurrent single-flight cache | Very high | Planned | Sharded bounded cache with caller-supplied clock, TTL, per-key single-flight loading, LRU-style eviction, and no global serialization of unrelated keys. Specify panic/error wake-up behavior, re-entrant loader limits, exact capacity accounting, and shutdown. Hidden validation needs controlled loaders and clocks to prove waiter progress, failure cleanup, eviction, and disjoint-key concurrency deterministically. |
+| RUST-008 (`rust_008`) | Cancellation-safe async service | Very high | Planned | Pinned-runtime async service combining bounded admission, request multiplexing, per-stream ordering, cancellation, deadlines through an injected clock, graceful shutdown, and transport failure propagation. Validation should use a deterministic fake transport/clock, paused time, and controlled tasks; no wall-clock sleeps or network access. Cancellation must not leak permits, lose acknowledged work, or deadlock shutdown. |
+| RUST-RSYNC (`rust_rsync`) | Cross-platform rsync clone | Very high / long horizon | Planned | Capstone repository task implementing a full functional rsync clone for Windows and Linux. Pin an upstream rsync release and its official man pages when authoring the task; cover local, remote-shell, and daemon transfers, wire interoperability, delta updates, filters, deletion, metadata, resume, diagnostics, and exit behavior. Build only after the compact High and Very-high tasks validate the Rust workflow, using the gates in [RUST_RSYNC_PLAN.md](RUST_RSYNC_PLAN.md). |
 
-## Difficulty policy
+The planned Rust distribution is one Low task, two Medium tasks, three High
+tasks, and three Very-high tasks including the rsync capstone. RUST-004 through
+RUST-008 are planning entries only; their IDs reserve ordering but do not imply
+that implementation may skip contract design, reference review, or independent
+validator review.
+
+## C++ difficulty policy
 
 - **Medium** tasks isolate one primary implementation skill and have a narrow, explicit contract.
 - **Medium-hard** tasks combine that skill with robust input/error handling or algorithmic depth.
 - **Hard** tasks require more than a happy-path implementation: realistic API ownership/forwarding, multi-threaded or multi-file behavior, and independent regression coverage, while avoiding unnecessary platform dependence.
 - **Very hard** tasks demand a substantive correctness model, not merely higher loop counts. Their contracts must state the relevant lifetime, synchronization, numerical, or integration invariants, and their hidden tests must exercise those invariants deterministically.
 - **Expert** tasks combine several independently testable components and require repository-level diagnosis; they must still have objective validation.
+
+## Rust severity policy
+
+- **Low** isolates one Rust mechanism behind a small API and a compact error or edge-case matrix.
+- **Medium** requires a complete generic or ownership-aware component with several independent invariants but little cross-component coordination.
+- **High** combines multiple modules or state transitions with ownership, error, parsing, concurrency, or architecture constraints that require iterative debugging.
+- **Very high** combines several interacting correctness models such as concurrency plus eviction, or async cancellation plus bounded admission and shutdown. Its validator must use deterministic scheduling/control points and test failure recovery, not merely larger workloads.
