@@ -1,5 +1,9 @@
 # RUST-002 — Lazy generic merge-join iterator
 
+**Severity: Medium.** This task combines generic iterator state, move-only
+ownership, and precise laziness/size-hint invariants in one component. It does
+not require concurrency, I/O, multiple modules, or failure recovery.
+
 Implement the generic iterator adaptor declared in `src/lib.rs`. It merges two
 sorted input streams and reports whether each next key came from the left
 stream, the right stream, or both.

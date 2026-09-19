@@ -1,5 +1,9 @@
 # RUST-001 — Owned configuration snapshot repair
 
+**Severity: Medium.** This task focuses on one ownership/lifetime boundary plus
+a compact parsing contract. It does not require concurrency, asynchronous code,
+external dependencies, or cross-component recovery.
+
 The crate parses a small line-oriented configuration format. Its current
 implementation keeps string slices into the caller's input. Repair the public
 types and implementation so a parsed `ConfigSnapshot` owns all of its data.
