@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from .runs import RUN_METADATA
-from .tasks import repository_root
+from .tasks import find_task, repository_root
 
 
 @dataclass(frozen=True)
@@ -117,7 +117,8 @@ def report_data(runs: list[RecordedRun]) -> dict[str, object]:
                             and run.model_seconds is not None and run.model_seconds > 0]
         generated_with_time = sum(tokens for tokens, _ in timed_generation)
         generation_seconds = sum(seconds for _, seconds in timed_generation)
-        models.append({"configuration": name, "tasks": len(group),
+        models.append({"configuration": name, "agent": group[0].agent, "model": group[0].model,
+                       "backend": group[0].backend, "variant": group[0].variant, "tasks": len(group),
                        "successes": outcomes.get("SUCCESS", 0), "outcomes": outcomes,
                        "max_context_tokens": max(contexts) if contexts else None,
                        "generated_tokens": sum(generated) if generated else None,
@@ -130,7 +131,8 @@ def report_data(runs: list[RecordedRun]) -> dict[str, object]:
     tasks = []
     for (task, version), group in sorted(task_groups.items()):
         tasks.append({"task": task, "version": version, "title": group[0].title,
-                      "configurations": len(group), "successes": sum(run.outcome == "SUCCESS" for run in group)})
+                      "severity": _task_severity(task), "configurations": len(group),
+                      "successes": sum(run.outcome == "SUCCESS" for run in group)})
     return {"attempts": [asdict(run) | {"configuration": run.configuration} for run in sorted(runs, key=lambda r: (r.timestamp, r.run_id))],
             "selected": [asdict(run) | {"configuration": run.configuration} for run in selected],
             "models": models, "tasks": tasks}
@@ -142,45 +144,54 @@ def _sum_known(values: Iterable[float | None]) -> float | None:
 
 
 def render_table(data: dict[str, object]) -> str:
-    lines = ["Latest attempt per model configuration and task version", "",
-             "Model configuration | Passed / Tasks | Failure classifications"]
-    for row in data["models"]:
-        failures = ", ".join(f"{name}={count}" for name, count in sorted(row["outcomes"].items()) if name != "SUCCESS")
-        lines.append(f"{row['configuration']} | {row['successes']} / {row['tasks']} | {failures or '-'}")
-    lines.extend(["", "Model telemetry for selected attempts",
-                  "Model configuration | Runs | Max context | Generated | Speed | Est. model time | Agent time | Full time"])
-    for row in data["models"]:
-        lines.append(
-            f"{row['configuration']} | {row['telemetry_runs']} / {row['tasks']} | "
-            f"{_format_tokens(row['max_context_tokens'])} | {_format_tokens(row['generated_tokens'])} | "
-            f"{_format_speed(row['generation_tokens_per_second'])} | "
-            f"{_format_seconds(row['model_seconds'])} | {_format_seconds(row['agent_seconds'])} | "
-            f"{_format_seconds(row['total_seconds'])}"
-        )
-    lines.extend(["", "Task/version | Passed / Configurations"])
-    for row in data["tasks"]:
-        lines.append(f"{row['task']} v{row['version']} {row['title']} | {row['successes']} / {row['configurations']}")
-    configurations = [row["configuration"] for row in data["models"]]
-    if configurations:
-        by_task = {(row["task"], row["task_version"], row["configuration"]): row["outcome"]
-                   for row in data["selected"]}
-        lines.extend(["", "Task/version | " + " | ".join(configurations)])
-        for row in data["tasks"]:
-            cells = [by_task.get((row["task"], row["version"], configuration), "-")
-                     for configuration in configurations]
-            lines.append(f"{row['task']} v{row['version']} | " + " | ".join(cells))
-    lines.extend(["", "Selected attempt telemetry",
-                  "Task/version | Model configuration | Max context | Generated | Speed | Est. model time | Agent time | Full time"])
-    for row in data["selected"]:
-        lines.append(
-            f"{row['task']} v{row['task_version']} | {row['configuration']} | "
-            f"{_format_tokens(row['context_tokens'])} | {_format_tokens(row['generated_tokens'])} | "
-            f"{_format_speed(row['generation_tokens_per_second'])} | "
-            f"{_format_seconds(row['model_seconds'])} | {_format_seconds(row['agent_seconds'])} | "
-            f"{_format_seconds(row['total_seconds'])}"
-        )
-    lines.extend(["", f"Saved attempts: {len(data['attempts'])}; selected: {len(data['selected'])}"])
-    return "\n".join(lines) + "\n"
+    model_ids = {row["configuration"]: f"M{index}"
+                 for index, row in enumerate(data["models"], start=1)}
+    model_rows = [
+        (model_ids[row["configuration"]], row["agent"], row["model"], row["backend"], row["variant"])
+        for row in data["models"]
+    ]
+    task_rows = [
+        (f"{row['task']} v{row['version']}", row["severity"], row["title"])
+        for row in data["tasks"]
+    ]
+    result_rows = [
+        (f"{row['task']} v{row['task_version']}", model_ids[row["configuration"]], row["outcome"],
+         _format_tokens(row["context_tokens"]), _format_tokens(row["generated_tokens"]),
+         _format_speed(row["generation_tokens_per_second"]))
+        for row in sorted(data["selected"],
+                          key=lambda item: (item["task"], item["task_version"],
+                                            model_ids[item["configuration"]]))
+    ]
+    tables = [
+        _plain_table("Table 1 - Models", ("Model", "Agent", "Configuration", "Backend", "Variant"), model_rows),
+        _plain_table("Table 2 - Tasks", ("Task", "Severity", "Description"), task_rows),
+        _plain_table("Table 3 - Results", ("Task", "Model", "Result", "Context", "Generated", "Speed"),
+                     result_rows),
+    ]
+    return "\n\n".join(tables) + "\n"
+
+
+def _task_severity(task_id: str) -> str:
+    try:
+        task = find_task(task_id)
+    except KeyError:
+        return "Unknown"
+    if task.language == "rust":
+        return {"easy": "Low", "medium": "Medium", "hard": "High",
+                "very hard": "Very high"}.get(task.difficulty, task.difficulty.title())
+    return task.difficulty.replace("-", " ").title()
+
+
+def _plain_table(title: str, headers: tuple[str, ...], rows: list[tuple[object, ...]]) -> str:
+    text_rows = [tuple(str(cell) for cell in row) for row in rows]
+    widths = [max([len(header), *(len(row[index]) for row in text_rows)])
+              for index, header in enumerate(headers)]
+
+    def line(cells: tuple[str, ...]) -> str:
+        return "  ".join(cell.ljust(widths[index]) for index, cell in enumerate(cells)).rstrip()
+
+    separator = tuple("-" * width for width in widths)
+    return "\n".join((title, line(headers), line(separator), *(line(row) for row in text_rows)))
 
 
 def _format_tokens(value: int | None) -> str:
@@ -189,10 +200,6 @@ def _format_tokens(value: int | None) -> str:
 
 def _format_speed(value: float | None) -> str:
     return "unavailable" if value is None else f"{value:.2f} tok/s"
-
-
-def _format_seconds(value: float | None) -> str:
-    return "unavailable" if value is None else f"{value:.1f}s"
 
 
 def render_csv(data: dict[str, object]) -> str:
