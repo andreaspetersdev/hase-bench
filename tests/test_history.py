@@ -34,21 +34,44 @@ class HistoryTests(unittest.TestCase):
             self.assertEqual(sum(row["outcomes"].get("AGENT_TIMEOUT", 0) for row in data["models"]), 1)
             table = render_table(data)
             self.assertIn("cpp_001 v2 | AGENT_TIMEOUT | SUCCESS", table)
+            self.assertIn("Model telemetry for selected attempts", table)
+            self.assertIn("Selected attempt telemetry", table)
+            self.assertIn("4,096", table)
+            self.assertIn("50.00 tok/s", table)
             exported = list(csv.DictReader(StringIO(render_csv(data))))
             self.assertEqual(len(exported), 4)
             self.assertEqual({row["run_id"] for row in exported if row["selected"] == "True"},
                              {"older", "latest", "other"})
+            self.assertEqual(exported[0]["context_tokens"], "4096")
+            self.assertEqual(exported[0]["generated_tokens"], "200")
+            self.assertEqual(exported[0]["generation_tokens_per_second"], "50.0")
+
+    def test_saved_runs_without_telemetry_remain_reportable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._write(root, "legacy", "2026-01-01T00:00:00Z", "qwen", 1, "SUCCESS",
+                        include_telemetry=False)
+            runs, errors = load_runs(root)
+            self.assertEqual(errors, [])
+            self.assertIsNone(runs[0].context_tokens)
+            self.assertIsNone(runs[0].generated_tokens)
+            self.assertIsNone(runs[0].generation_tokens_per_second)
+            self.assertIn("unavailable", render_table(report_data(runs)))
 
     @staticmethod
-    def _write(root: Path, name: str, timestamp: str, model: str, version: int, outcome: str) -> None:
+    def _write(root: Path, name: str, timestamp: str, model: str, version: int, outcome: str,
+               include_telemetry: bool = True) -> None:
         workspace = root / name
         workspace.mkdir()
+        agent: dict[str, object] = {"name": "opencode"}
+        if include_telemetry:
+            agent["telemetry"] = {"max_context_tokens": 4096, "generated_tokens": 200}
         (workspace / RUN_METADATA).write_text(json.dumps({
             "schema_version": 1, "run_id": name, "timestamp": timestamp, "mode": "autonomous",
             "task": {"id": "cpp_001", "version": version, "title": "Expression evaluator"},
-            "agent": {"name": "opencode"},
+            "agent": agent,
             "model": {"configuration": model, "backend": "llama.cpp", "variant": "medium"},
             "validation": {"outcome": outcome}, "outcome": outcome,
-            "timing": {"agent_duration_seconds": 1.0, "model_duration_seconds": None,
+            "timing": {"agent_duration_seconds": 1.0, "model_duration_seconds": 4.0,
                        "total_duration_seconds": 2.0},
         }), encoding="utf-8")
