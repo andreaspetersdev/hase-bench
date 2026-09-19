@@ -1,4 +1,15 @@
-use rust_001::{ConfigError, ConfigSnapshot};
+use std::fmt::Debug;
+
+use rust_001::{ConfigEntry, ConfigError, ConfigSnapshot};
+
+fn assert_required_traits<T: Debug + Clone + PartialEq + Eq>() {}
+
+#[test]
+fn public_types_keep_the_required_traits() {
+    assert_required_traits::<ConfigError>();
+    assert_required_traits::<ConfigEntry>();
+    assert_required_traits::<ConfigSnapshot>();
+}
 
 fn snapshot_after_source_is_dropped() -> ConfigSnapshot {
     let source = String::from("Alpha=one\nBeta=two\n");
@@ -49,4 +60,12 @@ fn counts_ignored_physical_lines_in_errors() {
         Err(ConfigError::MissingEquals { line: 4 })
     );
     assert_eq!(ConfigSnapshot::parse(" \t \n").unwrap().entries(), &[]);
+    assert_eq!(ConfigSnapshot::parse("").unwrap().entries(), &[]);
+}
+
+#[test]
+fn case_folding_is_ascii_only() {
+    let snapshot = ConfigSnapshot::parse("Ä=upper\nä=lower").unwrap();
+    assert_eq!(snapshot.get("Ä"), Some("upper"));
+    assert_eq!(snapshot.get("ä"), Some("lower"));
 }

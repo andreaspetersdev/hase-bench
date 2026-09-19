@@ -1156,7 +1156,9 @@ entries borrowed from the parse input. The required Rust 2024 API owns parsed
 keys and values, accepts owned updates, and produces independent clones. Visible
 tests cover parsing and ordinary updates; the external Cargo validator enforces
 source destruction, owned arguments, clone independence, ordering, and edge
-cases.
+cases. Version 2 also compiles explicit checks for every required public trait
+and verifies that case-insensitive key matching remains ASCII-only; the
+agent-visible contract is unchanged from version 1.
 
 Reserve `rust_rsync` as a single expert, long-horizon cross-platform rsync-clone
 task. The agent must build a complete functional Rust implementation, runnable
