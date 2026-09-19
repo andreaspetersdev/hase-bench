@@ -163,9 +163,9 @@ def render_table(data: dict[str, object]) -> str:
                                             model_ids[item["configuration"]]))
     ]
     tables = [
-        _plain_table("Table 1 - Models", ("Model", "Agent", "Configuration", "Backend", "Variant"), model_rows),
-        _plain_table("Table 2 - Tasks", ("Task", "Severity", "Description"), task_rows),
-        _plain_table("Table 3 - Results", ("Task", "Model", "Result", "Context", "Generated", "Speed"),
+        _plain_table("Models", ("Model", "Agent", "Configuration", "Backend", "Variant"), model_rows),
+        _plain_table("Tasks", ("Task", "Severity", "Description"), task_rows),
+        _plain_table("Results", ("Task", "Model", "Result", "Context", "Generated", "Speed"),
                      result_rows),
     ]
     return "\n\n".join(tables) + "\n"
