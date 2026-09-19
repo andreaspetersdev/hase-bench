@@ -26,6 +26,7 @@ from hasebench.validation import (
     ValidationResult,
     _cmake_debug_flags,
     _deduplicate_environment,
+    validate_rust,
     validate_task,
 )
 from hasebench.workspaces import (
@@ -158,9 +159,43 @@ class FrameworkTests(unittest.TestCase):
         validate_cpp.assert_called_once_with(Path("workspace"), task)
 
     def test_validation_rejects_an_unregistered_language(self) -> None:
-        task = Task("rust_001", "Rust task", "rust", "rust-2024", "easy", 1, Path("task"))
-        with self.assertRaisesRegex(ValueError, "No validator is available for rust"):
+        task = Task("python_001", "Python task", "python", "3.12", "easy", 1, Path("task"))
+        with self.assertRaisesRegex(ValueError, "No validator is available for python"):
             validate_task(Path("workspace"), task)
+
+    def test_rust_validation_builds_and_runs_visible_and_external_hidden_tests(self) -> None:
+        task = Task("rust_001", "Rust task", "rust", "rust-2024", "easy", 1, Path("task"))
+        success = CommandResult(0, "", 0.0)
+        workspace = Path("workspace")
+        with patch("hasebench.validation._run", return_value=success) as run:
+            result = validate_rust(workspace, task)
+
+        self.assertEqual(result.outcome, "SUCCESS")
+        self.assertEqual(run.call_count, 3)
+        self.assertEqual(run.call_args_list[0].args, (
+            [
+                "cargo", "build", "--locked", "--manifest-path", str(workspace / "Cargo.toml"),
+                "--target-dir", str(workspace / "build" / "hasebench"),
+            ],
+            workspace,
+            120,
+        ))
+        hidden_arguments = run.call_args_list[2].args[0]
+        self.assertEqual(hidden_arguments[:6], [
+            "cargo", "test", "--locked", "--manifest-path", str(task.root / "validator" / "Cargo.toml"),
+            "--target-dir",
+        ])
+        self.assertEqual(hidden_arguments[6], str(workspace / "build" / "hasebench-hidden"))
+        self.assertEqual(hidden_arguments[7], "--config")
+        self.assertTrue(hidden_arguments[8].startswith("patch.crates-io.rust_001.path="))
+
+    def test_rust_validation_stops_after_a_build_failure(self) -> None:
+        task = Task("rust_001", "Rust task", "rust", "rust-2024", "easy", 1, Path("task"))
+        failure = CommandResult(1, "compiler error", 0.0)
+        with patch("hasebench.validation._run", return_value=failure) as run:
+            result = validate_rust(Path("workspace"), task)
+        self.assertEqual(result.outcome, "COMPILATION_FAILURE")
+        self.assertEqual(run.call_count, 1)
 
     def test_opencode_runner_uses_non_interactive_workspace_command(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

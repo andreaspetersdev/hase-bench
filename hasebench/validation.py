@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import time
@@ -115,10 +116,50 @@ def validate_cpp(workspace: Path, task: Task) -> ValidationResult:
     return ValidationResult(task.identifier, configure, visible, hidden)
 
 
+def validate_rust(workspace: Path, task: Task) -> ValidationResult:
+    manifest = workspace / "Cargo.toml"
+    build_dir = workspace / "build" / "hasebench"
+    build = _run(
+        ["cargo", "build", "--locked", "--manifest-path", str(manifest), "--target-dir", str(build_dir)],
+        workspace,
+        120,
+    )
+    if build.returncode != 0:
+        return ValidationResult(task.identifier, build, None, None, "COMPILATION_FAILURE")
+
+    visible = _run(
+        ["cargo", "test", "--locked", "--manifest-path", str(manifest), "--target-dir", str(build_dir)],
+        workspace,
+        60,
+    )
+
+    validator_manifest = task.root / "validator" / "Cargo.toml"
+    hidden_build_dir = workspace / "build" / "hasebench-hidden"
+    workspace_path = json.dumps(workspace.resolve().as_posix())
+    workspace_patch = f"patch.crates-io.{task.identifier}.path={workspace_path}"
+    hidden = _run(
+        [
+            "cargo",
+            "test",
+            "--locked",
+            "--manifest-path",
+            str(validator_manifest),
+            "--target-dir",
+            str(hidden_build_dir),
+            "--config",
+            workspace_patch,
+        ],
+        workspace,
+        90,
+    )
+    return ValidationResult(task.identifier, build, visible, hidden)
+
+
 def validate_task(workspace: Path, task: Task) -> ValidationResult:
     """Validate a task with the implementation registered for its language."""
     validators = {
         "cpp": validate_cpp,
+        "rust": validate_rust,
     }
     try:
         validator = validators[task.language]

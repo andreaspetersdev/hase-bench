@@ -52,6 +52,14 @@ Windows error handling for non-interactive execution. An assertion is reported
 in the captured CTest output and the test process exits; validation never waits
 for an Abort/Retry/Ignore dialog.
 
+Rust validation requires `cargo` and `rustc` on `PATH`. Both `starter/` and
+`validator/` must contain committed `Cargo.toml` and `Cargo.lock` files, and the
+starter package name must equal the task ID. The validator crate declares that
+package as a dependency. During authoritative validation, the framework uses a
+Cargo source patch to redirect the dependency to the isolated run workspace,
+so hidden test sources stay in the canonical `validator/` directory. Cargo
+build artifacts are retained under the workspace's `build/` directory.
+
 ## Autonomous OpenCode runs
 
 Run one task in a fresh autonomous workspace:
