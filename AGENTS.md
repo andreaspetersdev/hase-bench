@@ -314,7 +314,8 @@ The agent must not receive `validator/` or `reference/`.
 
 ## Task catalogue
 
-`TASKS.md` is the maintained human-readable catalogue of the C++ suite.  It
+`TASKS.md` is the maintained human-readable catalogue of the C++ suite and
+planned Rust tasks.  It
 must list both implemented and planned tasks, their intended difficulty and
 scope, and the review notes that justify difficult-task requirements.  Update
 it whenever a task is added, removed, reprioritized, or its version/contract
@@ -870,21 +871,15 @@ Do not start with a web dashboard.
 
 A good CLI report is sufficient.
 
-## Stage 5 — Pi
-
-Add Pi through a second AgentRunner implementation.
-
-Do not change benchmark projects to accommodate Pi.
-
-## Stage 6 — Rust
+## Stage 5 — Rust
 
 Implement RustCargoValidator and add initial Rust tasks.
 
-## Stage 7 — General benchmarks
+## Stage 6 — General benchmarks
 
 Add deterministic non-programming reasoning tasks.
 
-## Stage 8 — Performance telemetry
+## Stage 7 — Performance telemetry
 
 Capture:
 
@@ -899,9 +894,15 @@ tool calls
 
 where the relevant backend/agent exposes them reliably.
 
-## Stage 9 — Visual tasks
+## Stage 8 — Visual tasks
 
 Add one small deterministic visual/game benchmark.
+
+## Stage 9 — Pi
+
+Add Pi through a second AgentRunner implementation.
+
+Do not change benchmark projects to accommodate Pi.
 
 ---
 

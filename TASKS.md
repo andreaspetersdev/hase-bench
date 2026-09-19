@@ -1,6 +1,7 @@
 # Hase Bench task catalogue
 
-This is the maintained human-readable catalogue for the C++ suite.  Canonical
+This is the maintained human-readable catalogue for the C++ suite and planned
+Rust tasks. Canonical
 agent-visible requirements live in each implemented task's `TASK.md`; this
 file explains the intended scope and difficulty balance.  Update it with
 `CODEX_TASK.md`, the task metadata, and `progress.md` whenever a task or its
@@ -35,6 +36,12 @@ version changes.
 ## Planned tasks
 
 No further C++ tasks are currently planned.
+
+### Rust
+
+| ID | Title | Difficulty | Status | Scope and review focus |
+| --- | --- | --- | --- | --- |
+| RUST-RSYNC (`rust_rsync`) | Cross-platform rsync clone | Expert / long horizon | Planned | One Rust project implementing a full functional rsync clone for Windows and Linux. Pin an upstream rsync release and its official man pages when authoring the task; cover local, remote-shell, and daemon transfers, wire interoperability, delta updates, filters, deletion, metadata, resume, diagnostics, and exit behavior. Build after the initial Rust pipeline is proven, using the design, implementation, review, test, and progress gates in [RUST_RSYNC_PLAN.md](RUST_RSYNC_PLAN.md). |
 
 ## Difficulty policy
 
