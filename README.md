@@ -1,6 +1,14 @@
 # Hase Bench
 
-The current milestone supports manual and autonomous C++ and Rust benchmark runs through OpenCode.
+Hase Bench is a reproducible benchmark for evaluating local language models as
+software-development agents. It gives an agent a clean copy of a realistic
+programming task, then independently builds and tests the result—including
+with hidden tests—so model configurations can be compared by correctness,
+failure mode, runtime, and generation telemetry.
+
+The current milestone supports manual and autonomous C++ and Rust benchmark
+runs through OpenCode, with models served separately from the Windows benchmark
+workstation.
 
 ## Python environment
 
