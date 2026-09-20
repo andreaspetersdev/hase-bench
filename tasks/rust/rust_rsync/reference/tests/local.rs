@@ -68,3 +68,66 @@ fn dry_run_does_not_create_the_destination() {
     assert!(!destination.exists());
     clean(&root);
 }
+
+#[test]
+fn directory_without_trailing_slash_uses_destination_state_like_rsync() {
+    let root = temporary_root();
+    let source = root.join("source");
+    let absent_destination = root.join("renamed");
+    let existing_destination = root.join("existing");
+    fs::create_dir_all(&source).unwrap();
+    fs::create_dir_all(&existing_destination).unwrap();
+    fs::write(source.join("data"), b"payload").unwrap();
+
+    rust_rsync_reference::run(
+        parse_invocation([
+            source.display().to_string(),
+            absent_destination.display().to_string(),
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        fs::read(absent_destination.join("source/data")).unwrap(),
+        b"payload"
+    );
+
+    rust_rsync_reference::run(
+        parse_invocation([
+            source.display().to_string(),
+            existing_destination.display().to_string(),
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        fs::read(existing_destination.join("source/data")).unwrap(),
+        b"payload"
+    );
+    clean(&root);
+}
+
+#[test]
+fn multiple_sources_copy_into_an_existing_directory() {
+    let root = temporary_root();
+    let first = root.join("first");
+    let second = root.join("second");
+    let destination = root.join("destination");
+    fs::create_dir_all(&destination).unwrap();
+    fs::write(&first, b"one").unwrap();
+    fs::write(&second, b"two").unwrap();
+
+    rust_rsync_reference::run(
+        parse_invocation([
+            "-av".into(),
+            first.display().to_string(),
+            second.display().to_string(),
+            destination.display().to_string(),
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(fs::read(destination.join("first")).unwrap(), b"one");
+    assert_eq!(fs::read(destination.join("second")).unwrap(), b"two");
+    clean(&root);
+}

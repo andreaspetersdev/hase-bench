@@ -19,6 +19,7 @@ Phase 0 artifacts:
   loopback remote-shell, and loopback daemon modes.
 - `validator/differential_fixture.py` compares candidate and oracle roles.
 - `validator/windows_capabilities.py` records filesystem capability outcomes.
+- `validator/windows_wsl_local_diff.py` compares native local output with WSL rsync.
 - `starter/` is the compiling unpublished Rust module skeleton.
 - `reference/` is the in-progress author reference; its README lists gaps.
 

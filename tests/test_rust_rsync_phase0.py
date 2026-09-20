@@ -101,3 +101,4 @@ def test_starter_layout_matches_the_reviewed_module_design() -> None:
     assert (reference / "Cargo.lock").is_file()
     assert (reference / "src" / "lib.rs").is_file()
     assert (reference / "tests" / "local.rs").is_file()
+    assert (RSYNC_ROOT / "validator" / "windows_wsl_local_diff.py").is_file()

@@ -32,3 +32,10 @@ unfinished Rust starter is expected to fail when supplied as the candidate.
 hard-link and symlink creation, long-path behavior, and explicit deferred
 capabilities. It creates only temporary probe entries and requires no elevated
 privileges.
+
+`windows_wsl_local_diff.py` runs a native Windows candidate and WSL rsync over
+separate trees in one Windows temporary directory. It independently compares
+archive contents, deletion, dry-run immutability, source trailing-slash and
+destination-shape rules, multiple sources, binary bytes, and names containing
+spaces. Drive paths are translated deterministically to `/mnt/<drive>/...`;
+no shell command is constructed from fixture paths.

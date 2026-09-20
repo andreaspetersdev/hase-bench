@@ -29,6 +29,8 @@ pub struct Options {
     pub dry_run: bool,
     pub delete: bool,
     pub checksum: bool,
+    pub whole_file: bool,
+    pub verbose: u8,
     pub remote_shell: Option<OsString>,
 }
 
@@ -102,6 +104,12 @@ where
         {
             options.checksum = true;
         } else if options_enabled
+            && (argument == OsStr::new("-W") || argument == OsStr::new("--whole-file"))
+        {
+            options.whole_file = true;
+        } else if options_enabled && argument == OsStr::new("-v") {
+            options.verbose = options.verbose.saturating_add(1);
+        } else if options_enabled
             && (argument == OsStr::new("-e") || argument == OsStr::new("--rsh"))
         {
             options.remote_shell = Some(
@@ -110,7 +118,7 @@ where
                     .ok_or(ParseError::MissingOptionValue("--rsh"))?,
             );
         } else if options_enabled && argument.to_string_lossy().starts_with('-') {
-            return Err(ParseError::UnknownOption(argument));
+            parse_short_cluster(&argument, &mut options)?;
         } else {
             operands.push(argument);
         }
@@ -128,6 +136,30 @@ where
         sources,
         destination,
     })
+}
+
+fn parse_short_cluster(argument: &OsStr, options: &mut Options) -> Result<(), ParseError> {
+    let Some(cluster) = argument.to_str().and_then(|text| text.strip_prefix('-')) else {
+        return Err(ParseError::UnknownOption(argument.to_os_string()));
+    };
+    if cluster.is_empty() || cluster.starts_with('-') {
+        return Err(ParseError::UnknownOption(argument.to_os_string()));
+    }
+    for option in cluster.chars() {
+        match option {
+            'a' => {
+                options.archive = true;
+                options.recursive = true;
+            }
+            'r' => options.recursive = true,
+            'n' => options.dry_run = true,
+            'c' => options.checksum = true,
+            'W' => options.whole_file = true,
+            'v' => options.verbose = options.verbose.saturating_add(1),
+            _ => return Err(ParseError::UnknownOption(argument.to_os_string())),
+        }
+    }
+    Ok(())
 }
 
 fn parse_endpoint(value: OsString) -> Result<Endpoint, ParseError> {
