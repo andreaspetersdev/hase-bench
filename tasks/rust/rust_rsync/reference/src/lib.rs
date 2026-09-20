@@ -9,6 +9,24 @@ use std::time::{Duration, UNIX_EPOCH};
 
 use rust_rsync::config::{FilterDirective, FilterFileKind, FilterRule};
 use rust_rsync::{Endpoint, Invocation, Options, PathSpec};
+use same_file::Handle;
+
+#[derive(Debug, Clone)]
+struct ActiveRule {
+    rule: FilterRule,
+    base: PathBuf,
+}
+
+#[derive(Debug, Default)]
+struct FilterProgram {
+    global_rules: Vec<ActiveRule>,
+    dir_merge_files: Vec<PathBuf>,
+}
+
+#[derive(Debug, Default)]
+struct CopyContext {
+    hard_links: Vec<(Handle, PathBuf)>,
+}
 
 #[derive(Debug)]
 pub enum ReferenceError {
@@ -75,6 +93,7 @@ pub fn run(invocation: Invocation) -> Result<(), ReferenceError> {
         })
         .collect::<Result<Vec<_>, _>>()?;
     let filters = expand_filters(&options)?;
+    let mut context = CopyContext::default();
     if options.dry_run {
         return Ok(());
     }
@@ -82,7 +101,7 @@ pub fn run(invocation: Invocation) -> Result<(), ReferenceError> {
         return Err(ReferenceError::InvalidDestination);
     }
     for source in &sources {
-        transfer_source(source, &destination.path, &options, &filters)?;
+        transfer_source(source, &destination.path, &options, &filters, &mut context)?;
     }
     Ok(())
 }
@@ -91,13 +110,22 @@ fn transfer_source(
     source: &PathSpec,
     destination: &Path,
     options: &Options,
-    filters: &[FilterRule],
+    filters: &FilterProgram,
+    context: &mut CopyContext,
 ) -> Result<(), ReferenceError> {
     let metadata =
         fs::symlink_metadata(&source.path).map_err(|error| io_error(&source.path, error))?;
     if metadata.is_dir() && source.copy_contents {
         create_directory(destination)?;
-        sync_directory(&source.path, destination, Path::new(""), options, filters)
+        sync_directory(
+            &source.path,
+            destination,
+            Path::new(""),
+            options,
+            filters,
+            &filters.global_rules,
+            context,
+        )
     } else {
         let name = source
             .path
@@ -108,7 +136,15 @@ fn transfer_source(
         } else {
             destination.to_path_buf()
         };
-        copy_entry(&source.path, &target, Path::new(name), options, filters)
+        copy_entry(
+            &source.path,
+            &target,
+            Path::new(name),
+            options,
+            filters,
+            &filters.global_rules,
+            context,
+        )
     }
 }
 
@@ -117,9 +153,18 @@ fn sync_directory(
     destination: &Path,
     relative: &Path,
     options: &Options,
-    filters: &[FilterRule],
+    program: &FilterProgram,
+    inherited_rules: &[ActiveRule],
+    context: &mut CopyContext,
 ) -> Result<(), ReferenceError> {
     create_directory(destination)?;
+    let mut filters = inherited_rules.to_vec();
+    for file in &program.dir_merge_files {
+        let path = source.join(file);
+        if path.is_file() {
+            filters.extend(read_filter_file(&path, FilterFileKind::Merge, relative)?);
+        }
+    }
     let mut retained = BTreeSet::new();
     let entries = fs::read_dir(source).map_err(|error| io_error(source, error))?;
     for entry in entries {
@@ -128,14 +173,16 @@ fn sync_directory(
         let metadata = entry
             .metadata()
             .map_err(|error| io_error(&entry.path(), error))?;
-        if is_included(filters, &entry_relative, metadata.is_dir()) {
+        if is_included(&filters, &entry_relative, metadata.is_dir()) {
             retained.insert(entry.file_name());
             copy_entry(
                 &entry.path(),
                 &destination.join(entry.file_name()),
                 &entry_relative,
                 options,
-                filters,
+                program,
+                &filters,
+                context,
             )?;
         }
     }
@@ -149,7 +196,7 @@ fn sync_directory(
                 .metadata()
                 .map_err(|error| io_error(&entry.path(), error))?;
             let protected = !options.delete_excluded
-                && !is_included(filters, &entry_relative, metadata.is_dir());
+                && !is_included(&filters, &entry_relative, metadata.is_dir());
             if !protected && !retained.contains(&entry.file_name()) {
                 remove_entry(&entry.path())?;
             }
@@ -168,23 +215,52 @@ fn copy_entry(
     destination: &Path,
     relative: &Path,
     options: &Options,
-    filters: &[FilterRule],
+    program: &FilterProgram,
+    active_rules: &[ActiveRule],
+    context: &mut CopyContext,
 ) -> Result<(), ReferenceError> {
     let metadata = fs::symlink_metadata(source).map_err(|error| io_error(source, error))?;
     if metadata.file_type().is_symlink() {
         copy_symlink(source, destination)
     } else if metadata.is_dir() {
-        sync_directory(source, destination, relative, options, filters)
+        sync_directory(
+            source,
+            destination,
+            relative,
+            options,
+            program,
+            active_rules,
+            context,
+        )
     } else if metadata.is_file() {
         if let Some(parent) = destination.parent() {
             create_directory(parent)?;
         }
+        let identity = options
+            .preserve_hard_links
+            .then(|| Handle::from_path(source))
+            .transpose()
+            .map_err(|error| io_error(source, error))?;
+        if let Some(existing) = identity.as_ref().and_then(|identity| {
+            context
+                .hard_links
+                .iter()
+                .find_map(|(known, destination)| (known == identity).then_some(destination))
+        }) {
+            if fs::symlink_metadata(destination).is_ok() {
+                remove_entry(destination)?;
+            }
+            fs::hard_link(existing, destination).map_err(|error| io_error(destination, error))?;
+            return Ok(());
+        }
         fs::copy(source, destination).map_err(|error| io_error(destination, error))?;
-        if options.preserve_permissions {
-            fs::set_permissions(destination, metadata.permissions())
-                .map_err(|error| io_error(destination, error))?;
+        if let Some(identity) = identity {
+            context
+                .hard_links
+                .push((identity, destination.to_path_buf()));
         }
         if options.preserve_times {
+            prepare_timestamp_write(destination, options.preserve_permissions)?;
             let modified = metadata
                 .modified()
                 .map_err(|error| io_error(source, error))?;
@@ -200,6 +276,10 @@ fn copy_entry(
                 .set_times(times)
                 .map_err(|error| io_error(destination, error))?;
         }
+        if options.preserve_permissions {
+            fs::set_permissions(destination, metadata.permissions())
+                .map_err(|error| io_error(destination, error))?;
+        }
         Ok(())
     } else {
         Err(ReferenceError::Io {
@@ -209,36 +289,84 @@ fn copy_entry(
     }
 }
 
-fn expand_filters(options: &Options) -> Result<Vec<FilterRule>, ReferenceError> {
-    let mut expanded = Vec::new();
+#[cfg(windows)]
+#[allow(clippy::permissions_set_readonly_false)]
+fn prepare_timestamp_write(
+    destination: &Path,
+    permissions_will_be_restored: bool,
+) -> Result<(), ReferenceError> {
+    let mut permissions = fs::metadata(destination)
+        .map_err(|error| io_error(destination, error))?
+        .permissions();
+    if permissions_will_be_restored && permissions.readonly() {
+        permissions.set_readonly(false);
+        fs::set_permissions(destination, permissions)
+            .map_err(|error| io_error(destination, error))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn prepare_timestamp_write(
+    _destination: &Path,
+    _permissions_will_be_restored: bool,
+) -> Result<(), ReferenceError> {
+    Ok(())
+}
+
+fn expand_filters(options: &Options) -> Result<FilterProgram, ReferenceError> {
+    let mut program = FilterProgram::default();
     for directive in &options.filters {
         match directive {
-            FilterDirective::Rule(rule) => expanded.push(rule.clone()),
+            FilterDirective::Rule(rule) => program.global_rules.push(ActiveRule {
+                rule: rule.clone(),
+                base: PathBuf::new(),
+            }),
             FilterDirective::File(file) => {
-                let contents =
-                    fs::read_to_string(&file.path).map_err(|error| io_error(&file.path, error))?;
-                for line in contents.lines() {
-                    let line = line.trim();
-                    if line.is_empty() || line.starts_with('#') {
-                        continue;
-                    }
-                    let rule = match file.kind {
-                        FilterFileKind::Include => FilterRule {
-                            include: true,
-                            pattern: line.to_owned(),
-                        },
-                        FilterFileKind::Exclude => FilterRule {
-                            include: false,
-                            pattern: line.to_owned(),
-                        },
-                        FilterFileKind::Merge => parse_merge_rule(line)?,
-                    };
-                    expanded.push(rule);
+                if file.kind == FilterFileKind::DirMerge {
+                    program.dir_merge_files.push(file.path.clone());
+                } else {
+                    program.global_rules.extend(read_filter_file(
+                        &file.path,
+                        file.kind,
+                        Path::new(""),
+                    )?);
                 }
             }
         }
     }
-    Ok(expanded)
+    Ok(program)
+}
+
+fn read_filter_file(
+    path: &Path,
+    kind: FilterFileKind,
+    base: &Path,
+) -> Result<Vec<ActiveRule>, ReferenceError> {
+    let contents = fs::read_to_string(path).map_err(|error| io_error(path, error))?;
+    let mut rules = Vec::new();
+    for line in contents.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let rule = match kind {
+            FilterFileKind::Include => FilterRule {
+                include: true,
+                pattern: line.to_owned(),
+            },
+            FilterFileKind::Exclude => FilterRule {
+                include: false,
+                pattern: line.to_owned(),
+            },
+            FilterFileKind::Merge | FilterFileKind::DirMerge => parse_merge_rule(line)?,
+        };
+        rules.push(ActiveRule {
+            rule,
+            base: base.to_path_buf(),
+        });
+    }
+    Ok(rules)
 }
 
 fn parse_merge_rule(line: &str) -> Result<FilterRule, ReferenceError> {
@@ -258,11 +386,19 @@ fn parse_merge_rule(line: &str) -> Result<FilterRule, ReferenceError> {
     })
 }
 
-fn is_included(filters: &[FilterRule], relative: &Path, is_directory: bool) -> bool {
+fn is_included(filters: &[ActiveRule], relative: &Path, is_directory: bool) -> bool {
     let path = relative.to_string_lossy().replace('\\', "/");
     filters
         .iter()
-        .find_map(|rule| rule_matches(rule, &path, is_directory).then_some(rule.include))
+        .find_map(|active| {
+            let base = active.base.to_string_lossy().replace('\\', "/");
+            let local = if base.is_empty() {
+                path.as_str()
+            } else {
+                path.strip_prefix(&format!("{base}/"))?
+            };
+            rule_matches(&active.rule, local, is_directory).then_some(active.rule.include)
+        })
         .unwrap_or(true)
 }
 

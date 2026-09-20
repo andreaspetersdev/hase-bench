@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 rust_rsync = { path = "../starter" }
+same-file = "=1.0.6"
 
 [lib]
 path = "src/lib.rs"

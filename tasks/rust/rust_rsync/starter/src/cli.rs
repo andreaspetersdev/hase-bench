@@ -36,6 +36,8 @@ pub struct Options {
     pub verbose: u8,
     pub preserve_times: bool,
     pub preserve_permissions: bool,
+    pub preserve_hard_links: bool,
+    pub preserve_symlinks: bool,
     pub filters: Vec<FilterDirective>,
     pub remote_shell: Option<OsString>,
 }
@@ -101,6 +103,7 @@ where
             options.recursive = true;
             options.preserve_times = true;
             options.preserve_permissions = true;
+            options.preserve_symlinks = true;
         } else if options_enabled
             && (argument == OsStr::new("-r") || argument == OsStr::new("--recursive"))
         {
@@ -132,6 +135,14 @@ where
             && (argument == OsStr::new("-p") || argument == OsStr::new("--perms"))
         {
             options.preserve_permissions = true;
+        } else if options_enabled
+            && (argument == OsStr::new("-H") || argument == OsStr::new("--hard-links"))
+        {
+            options.preserve_hard_links = true;
+        } else if options_enabled
+            && (argument == OsStr::new("-l") || argument == OsStr::new("--links"))
+        {
+            options.preserve_symlinks = true;
         } else if options_enabled && argument == OsStr::new("--include") {
             options.filters.push(FilterDirective::Rule(FilterRule {
                 include: true,
@@ -218,6 +229,7 @@ fn parse_short_cluster(argument: &OsStr, options: &mut Options) -> Result<(), Pa
                 options.recursive = true;
                 options.preserve_times = true;
                 options.preserve_permissions = true;
+                options.preserve_symlinks = true;
             }
             'r' => options.recursive = true,
             'n' => options.dry_run = true,
@@ -226,6 +238,8 @@ fn parse_short_cluster(argument: &OsStr, options: &mut Options) -> Result<(), Pa
             'v' => options.verbose = options.verbose.saturating_add(1),
             't' => options.preserve_times = true,
             'p' => options.preserve_permissions = true,
+            'H' => options.preserve_hard_links = true,
+            'l' => options.preserve_symlinks = true,
             _ => return Err(ParseError::UnknownOption(argument.to_os_string())),
         }
     }
@@ -269,6 +283,17 @@ fn parse_filter_directive(rule: String) -> Result<FilterDirective, ParseError> {
         }
         return Ok(FilterDirective::File(FilterFile {
             kind: FilterFileKind::Merge,
+            path: PathBuf::from(path),
+        }));
+    } else if let Some(path) = trimmed
+        .strip_prefix(": ")
+        .or_else(|| trimmed.strip_prefix("dir-merge "))
+    {
+        if path.is_empty() {
+            return Err(ParseError::InvalidFilter(rule));
+        }
+        return Ok(FilterDirective::File(FilterFile {
+            kind: FilterFileKind::DirMerge,
             path: PathBuf::from(path),
         }));
     } else {

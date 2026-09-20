@@ -21,6 +21,13 @@ fn clean(path: &Path) {
     }
 }
 
+#[allow(clippy::permissions_set_readonly_false)]
+fn make_writable(path: &Path) {
+    let mut permissions = fs::metadata(path).unwrap().permissions();
+    permissions.set_readonly(false);
+    fs::set_permissions(path, permissions).unwrap();
+}
+
 #[test]
 fn copies_contents_and_deletes_extraneous_entries() {
     let root = temporary_root();
@@ -224,5 +231,93 @@ fn archive_preserves_regular_file_modification_time() {
             .unwrap(),
         expected
     );
+    clean(&root);
+}
+
+#[test]
+fn directory_merge_rules_are_anchored_and_inherited() {
+    let root = temporary_root();
+    let source = root.join("source");
+    let destination = root.join("destination");
+    fs::create_dir_all(source.join("nested")).unwrap();
+    fs::write(source.join(".rules"), "- *.tmp\n").unwrap();
+    fs::write(source.join("root.tmp"), b"excluded").unwrap();
+    fs::write(source.join("root.txt"), b"root").unwrap();
+    fs::write(source.join("nested/.rules"), "- /private.txt\n").unwrap();
+    fs::write(source.join("nested/private.txt"), b"private").unwrap();
+    fs::write(source.join("nested/public.txt"), b"public").unwrap();
+    fs::write(source.join("nested/child.tmp"), b"excluded").unwrap();
+
+    rust_rsync_reference::run(
+        parse_invocation([
+            "-a".into(),
+            "--filter".into(),
+            "dir-merge .rules".into(),
+            format!("{}/", source.display()),
+            format!("{}/", destination.display()),
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+    assert!(destination.join("root.txt").exists());
+    assert!(!destination.join("root.tmp").exists());
+    assert!(destination.join("nested/public.txt").exists());
+    assert!(!destination.join("nested/private.txt").exists());
+    assert!(!destination.join("nested/child.tmp").exists());
+    clean(&root);
+}
+
+#[test]
+fn hard_link_groups_are_preserved_when_requested() {
+    let root = temporary_root();
+    let source = root.join("source");
+    let destination = root.join("destination");
+    fs::create_dir_all(&source).unwrap();
+    fs::write(source.join("first"), b"shared").unwrap();
+    fs::hard_link(source.join("first"), source.join("second")).unwrap();
+
+    rust_rsync_reference::run(
+        parse_invocation([
+            "-aH".into(),
+            format!("{}/", source.display()),
+            format!("{}/", destination.display()),
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+    fs::write(destination.join("first"), b"changed").unwrap();
+    assert_eq!(fs::read(destination.join("second")).unwrap(), b"changed");
+    clean(&root);
+}
+
+#[test]
+fn archive_preserves_windows_read_only_mapping() {
+    let root = temporary_root();
+    let source = root.join("source");
+    let destination = root.join("destination");
+    fs::create_dir_all(&source).unwrap();
+    let source_file = source.join("readonly");
+    fs::write(&source_file, b"readonly").unwrap();
+    let mut permissions = fs::metadata(&source_file).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&source_file, permissions).unwrap();
+
+    rust_rsync_reference::run(
+        parse_invocation([
+            "-a".into(),
+            format!("{}/", source.display()),
+            format!("{}/", destination.display()),
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        fs::metadata(destination.join("readonly"))
+            .unwrap()
+            .permissions()
+            .readonly()
+    );
+    make_writable(&source_file);
+    make_writable(&destination.join("readonly"));
     clean(&root);
 }

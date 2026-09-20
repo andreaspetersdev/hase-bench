@@ -221,13 +221,90 @@ def compare_filters(candidate: str, wsl: str, root: Path, source: Path) -> dict[
         ]
     )
     assert_same(oracle_merge, candidate_merge, "Windows/WSL merge-filter differential")
+
+    inherited_source = root / "inherited-filter-source"
+    (inherited_source / "nested").mkdir(parents=True)
+    (inherited_source / ".rules").write_text("- *.tmp\n", encoding="utf-8")
+    (inherited_source / "root.txt").write_bytes(b"root")
+    (inherited_source / "root.tmp").write_bytes(b"excluded")
+    (inherited_source / "nested" / ".rules").write_text(
+        "- /private.txt\n", encoding="utf-8"
+    )
+    (inherited_source / "nested" / "private.txt").write_bytes(b"private")
+    (inherited_source / "nested" / "public.txt").write_bytes(b"public")
+    (inherited_source / "nested" / "child.tmp").write_bytes(b"excluded")
+    candidate_inherited = root / "candidate-filter-inherited"
+    oracle_inherited = root / "oracle-filter-inherited"
+    candidate_inherited.mkdir()
+    oracle_inherited.mkdir()
+    run(
+        [
+            candidate,
+            "-a",
+            "--filter",
+            "dir-merge .rules",
+            with_trailing_separator(inherited_source),
+            with_trailing_separator(candidate_inherited),
+        ]
+    )
+    run(
+        [
+            wsl,
+            "rsync",
+            "-a",
+            "--filter",
+            "dir-merge .rules",
+            wsl_trailing(inherited_source, wsl),
+            wsl_trailing(oracle_inherited, wsl),
+        ]
+    )
+    assert_same(
+        oracle_inherited,
+        candidate_inherited,
+        "Windows/WSL inherited-filter differential",
+    )
     return {
         "exclude": "pass",
         "delete_protection": "pass",
         "delete_excluded": "pass",
         "ordered_rules": "pass",
         "merge_file": "pass",
+        "dir_merge_inheritance": "pass",
     }
+
+
+def compare_hard_links(candidate: str, wsl: str, root: Path) -> str:
+    source = root / "hardlink-source"
+    source.mkdir()
+    (source / "first").write_bytes(b"shared")
+    os.link(source / "first", source / "second")
+    candidate_destination = root / "candidate-hardlinks"
+    oracle_destination = root / "oracle-hardlinks"
+    candidate_destination.mkdir()
+    oracle_destination.mkdir()
+    run(
+        [
+            candidate,
+            "-aH",
+            with_trailing_separator(source),
+            with_trailing_separator(candidate_destination),
+        ]
+    )
+    run(
+        [
+            wsl,
+            "rsync",
+            "-aH",
+            wsl_trailing(source, wsl),
+            wsl_trailing(oracle_destination, wsl),
+        ]
+    )
+    assert_same(oracle_destination, candidate_destination, "Windows/WSL hard-link differential")
+    if not os.path.samefile(candidate_destination / "first", candidate_destination / "second"):
+        raise RuntimeError("candidate did not preserve the hard-link identity group")
+    if not os.path.samefile(oracle_destination / "first", oracle_destination / "second"):
+        raise RuntimeError("oracle fixture filesystem did not preserve hard links")
+    return "pass"
 
 
 def compare_directory_shape(candidate: str, wsl: str, root: Path, source: Path) -> dict[str, str]:
@@ -286,6 +363,7 @@ def differential(candidate: str, wsl: str) -> dict[str, object]:
             "oracle": "WSL rsync",
             "contents": compare_contents(candidate_path, wsl, root, source),
             "filters": compare_filters(candidate_path, wsl, root, source),
+            "hard_links": compare_hard_links(candidate_path, wsl, root),
             "directory_shape": compare_directory_shape(candidate_path, wsl, root, source),
             "multiple_sources": compare_multiple_sources(candidate_path, wsl, root),
         }

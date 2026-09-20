@@ -12,6 +12,9 @@ Implemented and tested:
 - `--delete` for extraneous destination entries;
 - ordered inline include/exclude rules, merge filter files, and excluded-path
   delete protection including `--delete-excluded`;
+- inherited per-directory merge rules with directory-relative anchoring;
+- hard-link identity groups with `-H` through safe cross-platform handles;
+- Windows read-only mapping under archive/permission preservation;
 - mutation-free `--dry-run`;
 - regular-file modification times at the exercised rsync/filesystem precision;
 - rsync-style broad syntax and partial-transfer exit categories.
@@ -19,8 +22,8 @@ Implemented and tested:
 The Windows reference is independently differential-tested against WSL rsync
 3.2.7 for trailing-slash contents, non-trailing directory naming with absent
 and existing destinations, recursive binary/name handling, `--delete`,
-`--delete-excluded`, `--dry-run`, ordered filters, a merge file, timestamps,
-and multiple sources. The first differential run corrected an
+`--delete-excluded`, `--dry-run`, ordered and inherited filters, merge files,
+timestamps, hard-link identity, and multiple sources. The first differential run corrected an
 author-test assumption about the absent-destination directory shape.
 
 Not yet implemented:

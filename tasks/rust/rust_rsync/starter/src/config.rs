@@ -11,6 +11,7 @@ pub enum FilterFileKind {
     Include,
     Exclude,
     Merge,
+    DirMerge,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

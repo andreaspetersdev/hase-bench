@@ -39,5 +39,7 @@ archive contents, deletion, dry-run immutability, source trailing-slash and
 destination-shape rules, multiple sources, binary bytes, and names containing
 spaces. It also compares ordered include/exclude rules, a merge filter file,
 excluded-path protection and `--delete-excluded`, and regular-file timestamp
-precision. Drive paths are translated deterministically to `/mnt/<drive>/...`;
+precision. Per-directory merge inheritance and hard-link identity groups are
+also compared when the shared filesystem advertises support. Drive paths are
+translated deterministically to `/mnt/<drive>/...`;
 no shell command is constructed from fixture paths.
