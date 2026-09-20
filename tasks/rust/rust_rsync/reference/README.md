@@ -20,8 +20,13 @@ Implemented and tested:
   requested native symbolic link;
 - typed metadata capability reporting for timestamps, permissions, ownership,
   ACLs, xattrs/named streams, symlinks, hard links, and sparse files;
-- pre-mutation exit-23 diagnostics for explicit `-o`/`-g`, `-A`, `-X`, and
-  `-S` requests that the current adapter cannot honor;
+- Windows ACL preservation through a fixed PowerShell command whose paths are
+  passed only through environment variables;
+- Windows named-stream enumeration with opaque byte copying in Rust;
+- Windows sparse output with measured allocation reduction through argument-array
+  `fsutil` calls;
+- pre-mutation exit-23 diagnostics for explicit metadata requests that the
+  selected platform adapter cannot honor;
 - mutation-free `--dry-run`;
 - regular-file modification times at the exercised rsync/filesystem precision;
 - rsync-style broad syntax and partial-transfer exit categories.
@@ -39,7 +44,8 @@ assumption about the absent-destination directory shape.
 Not yet implemented:
 
 - complete option and filter semantics;
-- the remaining metadata/capability mapping;
+- Unix ownership, ACL, xattr, and sparse adapters plus remaining metadata
+  mapping;
 - rolling delta and interruption recovery;
 - protocol-31 framing and remote-shell roles;
 - daemon client/server, modules, and authentication;

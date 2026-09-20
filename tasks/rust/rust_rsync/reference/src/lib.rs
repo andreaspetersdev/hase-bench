@@ -1,10 +1,16 @@
 #![forbid(unsafe_code)]
 
 use std::collections::BTreeSet;
+#[cfg(windows)]
+use std::ffi::OsString;
 use std::fmt;
 use std::fs::{self, FileTimes};
-use std::io;
+#[cfg(windows)]
+use std::io::Read;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+#[cfg(windows)]
+use std::process::Command;
 use std::time::{Duration, UNIX_EPOCH};
 
 use rust_rsync::config::{FilterDirective, FilterFileKind, FilterRule};
@@ -157,22 +163,22 @@ pub fn metadata_capabilities() -> CapabilityReport {
                 feature: MetadataFeature::Ownership,
                 status: ownership,
             },
-            adapter_unavailable(
+            windows_adapter(
                 MetadataFeature::Acls,
-                "ACL preservation is not implemented in the Phase 0 reference",
+                "Unix ACL preservation is not implemented in the Phase 0 reference",
             ),
-            adapter_unavailable(
+            windows_adapter(
                 MetadataFeature::ExtendedAttributes,
-                "xattr/named-stream preservation is not implemented in the Phase 0 reference",
+                "Unix xattr preservation is not implemented in the Phase 0 reference",
             ),
             CapabilityOutcome {
                 feature: MetadataFeature::Symlinks,
                 status: CapabilityStatus::ProbeRequired,
             },
             supported(MetadataFeature::HardLinks),
-            adapter_unavailable(
+            windows_adapter(
                 MetadataFeature::SparseFiles,
-                "sparse allocation is not implemented in the Phase 0 reference",
+                "Unix sparse allocation is not implemented in the Phase 0 reference",
             ),
         ],
     }
@@ -191,6 +197,14 @@ fn adapter_unavailable(feature: MetadataFeature, reason: &str) -> CapabilityOutc
         status: CapabilityStatus::AdapterUnavailable {
             reason: reason.to_owned(),
         },
+    }
+}
+
+fn windows_adapter(feature: MetadataFeature, non_windows_reason: &str) -> CapabilityOutcome {
+    if cfg!(windows) {
+        supported(feature)
+    } else {
+        adapter_unavailable(feature, non_windows_reason)
     }
 }
 
@@ -345,6 +359,9 @@ fn sync_directory(
         fs::set_permissions(destination, metadata.permissions())
             .map_err(|error| io_error(destination, error))?;
     }
+    if options.preserve_acls {
+        copy_acl(source, destination)?;
+    }
     Ok(())
 }
 
@@ -444,11 +461,20 @@ fn copy_referent(
             fs::hard_link(existing, destination).map_err(|error| io_error(destination, error))?;
             return Ok(());
         }
-        fs::copy(source, destination).map_err(|error| io_error(destination, error))?;
+        if fs::symlink_metadata(destination).is_ok() {
+            remove_entry(destination)?;
+        }
+        copy_file_data(source, destination)?;
         if let Some(identity) = identity {
             context
                 .hard_links
                 .push((identity, destination.to_path_buf()));
+        }
+        if options.preserve_xattrs {
+            copy_extended_attributes(source, destination)?;
+        }
+        if options.sparse {
+            preserve_sparse_allocation(destination)?;
         }
         if options.preserve_times {
             prepare_timestamp_write(destination, options.preserve_permissions)?;
@@ -471,6 +497,9 @@ fn copy_referent(
             fs::set_permissions(destination, metadata.permissions())
                 .map_err(|error| io_error(destination, error))?;
         }
+        if options.preserve_acls {
+            copy_acl(source, destination)?;
+        }
         Ok(())
     } else {
         Err(ReferenceError::Io {
@@ -478,6 +507,186 @@ fn copy_referent(
             source: io::Error::new(io::ErrorKind::Unsupported, "unsupported entry kind"),
         })
     }
+}
+
+fn copy_file_data(source: &Path, destination: &Path) -> Result<(), ReferenceError> {
+    let mut input = fs::File::open(source).map_err(|error| io_error(source, error))?;
+    let mut output = fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(destination)
+        .map_err(|error| io_error(destination, error))?;
+    io::copy(&mut input, &mut output).map_err(|error| io_error(destination, error))?;
+    output.flush().map_err(|error| io_error(destination, error))
+}
+
+#[cfg(windows)]
+fn copy_acl(source: &Path, destination: &Path) -> Result<(), ReferenceError> {
+    const SCRIPT: &str = "$ErrorActionPreference='Stop'; $acl=Get-Acl -LiteralPath $env:HASEBENCH_ACL_SOURCE; Set-Acl -LiteralPath $env:HASEBENCH_ACL_DESTINATION -AclObject $acl";
+    let output = Command::new("pwsh.exe")
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            SCRIPT,
+        ])
+        .env("HASEBENCH_ACL_SOURCE", source)
+        .env("HASEBENCH_ACL_DESTINATION", destination)
+        .output()
+        .map_err(|error| capability_io_error("ACL preservation", destination, error))?;
+    require_command_success("ACL preservation", destination, output)
+}
+
+#[cfg(not(windows))]
+fn copy_acl(_source: &Path, destination: &Path) -> Result<(), ReferenceError> {
+    Err(unavailable_adapter(
+        "ACL preservation",
+        destination,
+        "Unix ACL adapter is unavailable",
+    ))
+}
+
+#[cfg(windows)]
+fn copy_extended_attributes(source: &Path, destination: &Path) -> Result<(), ReferenceError> {
+    const SCRIPT: &str = "$ErrorActionPreference='Stop'; Get-Item -LiteralPath $env:HASEBENCH_STREAM_SOURCE -Stream * | Select-Object -ExpandProperty Stream";
+    let output = Command::new("pwsh.exe")
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            SCRIPT,
+        ])
+        .env("HASEBENCH_STREAM_SOURCE", source)
+        .output()
+        .map_err(|error| capability_io_error("named-stream enumeration", source, error))?;
+    if !output.status.success() {
+        return require_command_success("named-stream enumeration", source, output);
+    }
+    for stream in String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|stream| !stream.is_empty() && *stream != ":$DATA")
+    {
+        copy_file_data(
+            &named_stream_path(source, stream),
+            &named_stream_path(destination, stream),
+        )?;
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn named_stream_path(path: &Path, stream: &str) -> PathBuf {
+    let mut value: OsString = path.as_os_str().to_owned();
+    value.push(":");
+    value.push(stream);
+    PathBuf::from(value)
+}
+
+#[cfg(not(windows))]
+fn copy_extended_attributes(_source: &Path, destination: &Path) -> Result<(), ReferenceError> {
+    Err(unavailable_adapter(
+        "extended-attribute preservation",
+        destination,
+        "Unix xattr adapter is unavailable",
+    ))
+}
+
+#[cfg(windows)]
+fn preserve_sparse_allocation(path: &Path) -> Result<(), ReferenceError> {
+    run_fsutil(path, "setflag", &[])?;
+    let mut input = fs::File::open(path).map_err(|error| io_error(path, error))?;
+    let mut buffer = [0_u8; 64 * 1024];
+    let mut offset = 0_u64;
+    let mut zero_start = None;
+    loop {
+        let count = input
+            .read(&mut buffer)
+            .map_err(|error| io_error(path, error))?;
+        if count == 0 {
+            break;
+        }
+        if buffer[..count].iter().all(|byte| *byte == 0) {
+            zero_start.get_or_insert(offset);
+        } else if let Some(start) = zero_start.take() {
+            set_sparse_range(path, start, offset - start)?;
+        }
+        offset += count as u64;
+    }
+    if let Some(start) = zero_start {
+        set_sparse_range(path, start, offset - start)?;
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn set_sparse_range(path: &Path, offset: u64, length: u64) -> Result<(), ReferenceError> {
+    if length == 0 {
+        return Ok(());
+    }
+    let offset = offset.to_string();
+    let length = length.to_string();
+    run_fsutil(path, "setrange", &[&offset, &length])
+}
+
+#[cfg(windows)]
+fn run_fsutil(path: &Path, operation: &str, arguments: &[&str]) -> Result<(), ReferenceError> {
+    let mut command = Command::new("fsutil.exe");
+    command
+        .args(["sparse", operation])
+        .arg(path)
+        .args(arguments);
+    let output = command
+        .output()
+        .map_err(|error| capability_io_error("sparse-file preservation", path, error))?;
+    require_command_success("sparse-file preservation", path, output)
+}
+
+#[cfg(not(windows))]
+fn preserve_sparse_allocation(path: &Path) -> Result<(), ReferenceError> {
+    Err(unavailable_adapter(
+        "sparse-file preservation",
+        path,
+        "Unix sparse adapter is unavailable",
+    ))
+}
+
+#[cfg(windows)]
+fn require_command_success(
+    feature: &'static str,
+    path: &Path,
+    output: std::process::Output,
+) -> Result<(), ReferenceError> {
+    if output.status.success() {
+        return Ok(());
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let diagnostic = if stdout.trim().is_empty() {
+        stderr.trim().to_owned()
+    } else {
+        stdout.trim().to_owned()
+    };
+    Err(unavailable_adapter(feature, path, &diagnostic))
+}
+
+fn capability_io_error(feature: &'static str, path: &Path, error: io::Error) -> ReferenceError {
+    ReferenceError::UnsupportedCapability {
+        feature,
+        path: path.to_path_buf(),
+        source: error,
+    }
+}
+
+fn unavailable_adapter(feature: &'static str, path: &Path, reason: &str) -> ReferenceError {
+    capability_io_error(
+        feature,
+        path,
+        io::Error::new(io::ErrorKind::Unsupported, reason.to_owned()),
+    )
 }
 
 fn safe_link_target(source: &Path, relative: &Path) -> Result<bool, ReferenceError> {

@@ -37,6 +37,12 @@ SID-to-uid/gid ownership mapping. Each capability is a structured
 requires no elevated privileges; command-backed failures are recorded rather
 than hidden or treated as a passing skip.
 
+The author-reference Windows metadata test consumes those outcomes: it checks
+canonical ACL entry equivalence, opaque named-stream bytes, exact base-file
+bytes, the sparse-file attribute, and allocated ranges smaller than logical
+size. These are reference-level checks until equivalent Unix adapters and
+independent candidate fixtures exist.
+
 `windows_wsl_local_diff.py` runs a native Windows candidate and WSL rsync over
 separate trees in one Windows temporary directory. It independently compares
 archive contents, deletion, dry-run immutability, source trailing-slash and

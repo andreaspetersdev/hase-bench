@@ -21,9 +21,9 @@ META-002,3,all,preserve representable permissions,-p,fs,visible_permissions,diff
 META-003,3,all,preserve owner and group when authorized,-o|-g,fs,visible_owner_group,diff_owner_group,capability-dependent,planned
 META-004,3,all,preserve symbolic links and selected referent behavior,-l|-L,fs|planner,visible_symlinks,hidden_symlink_escape,capability-dependent,reference
 META-005,3,all,preserve hard-link identity groups,-H,fs|planner,visible_hardlinks,diff_hardlinks,capability-dependent,verified
-META-006,3,all,preserve ACL entries when advertised,-A,fs,visible_acl,diff_acl,capability-dependent,planned
-META-007,3,all,preserve extended attributes as opaque bytes,-X,fs,visible_xattrs,diff_xattrs,capability-dependent,planned
-META-008,3,all,sparse mode preserves bytes and reduces allocation when supported,-S,fs|delta,visible_sparse,diff_sparse,capability-dependent,planned
+META-006,3,all,preserve ACL entries when advertised,-A,fs,visible_acl,diff_acl,capability-dependent,reference
+META-007,3,all,preserve extended attributes as opaque bytes,-X,fs,visible_xattrs,diff_xattrs,capability-dependent,reference
+META-008,3,all,sparse mode preserves bytes and reduces allocation when supported,-S,fs|delta,visible_sparse,diff_sparse,capability-dependent,reference
 SAFE-001,3,all,destination writes and deletes remain confined to root,default,planner|fs,visible_safe_paths,hidden_traversal_reparse,required,planned
 SAFE-002,3,all,case-folded or platform-alias collisions fail before mutation,default,planner|fs,visible_case_collision,hidden_windows_aliases,capability-dependent,planned
 DELTA-001,4,all,rolling and strong signatures reconstruct exact bytes,default,delta,visible_delta_rebuild,hidden_random_delta,required,planned

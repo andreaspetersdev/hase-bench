@@ -2,6 +2,13 @@ use std::fs::{self, FileTimes, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[cfg(windows)]
+use std::ffi::OsString;
+#[cfg(windows)]
+use std::os::windows::fs::MetadataExt;
+#[cfg(windows)]
+use std::process::Command;
+
 use rust_rsync::fs::{CapabilityStatus, MetadataFeature};
 use rust_rsync::parse_invocation;
 
@@ -419,18 +426,14 @@ fn metadata_capability_report_distinguishes_host_and_adapter_limits() {
         report.status(MetadataFeature::Symlinks),
         Some(&CapabilityStatus::ProbeRequired)
     );
-    assert!(matches!(
-        report.status(MetadataFeature::Acls),
-        Some(CapabilityStatus::AdapterUnavailable { .. })
-    ));
-    assert!(matches!(
-        report.status(MetadataFeature::ExtendedAttributes),
-        Some(CapabilityStatus::AdapterUnavailable { .. })
-    ));
-    assert!(matches!(
-        report.status(MetadataFeature::SparseFiles),
-        Some(CapabilityStatus::AdapterUnavailable { .. })
-    ));
+    #[cfg(windows)]
+    for feature in [
+        MetadataFeature::Acls,
+        MetadataFeature::ExtendedAttributes,
+        MetadataFeature::SparseFiles,
+    ] {
+        assert_eq!(report.status(feature), Some(&CapabilityStatus::Supported));
+    }
     #[cfg(windows)]
     assert!(matches!(
         report.status(MetadataFeature::Ownership),
@@ -444,16 +447,30 @@ fn unavailable_metadata_requests_fail_before_destination_mutation() {
     let source = root.join("source");
     fs::create_dir_all(&source).unwrap();
     fs::write(source.join("data"), b"payload").unwrap();
-    for (index, (flag, diagnostic)) in [
-        ("-o", "ownership preservation"),
-        ("-g", "ownership preservation"),
-        ("-A", "ACL preservation"),
-        ("-X", "extended-attribute preservation"),
-        ("-S", "sparse-file preservation"),
+    for (index, (flag, diagnostic, feature)) in [
+        ("-o", "ownership preservation", MetadataFeature::Ownership),
+        ("-g", "ownership preservation", MetadataFeature::Ownership),
+        ("-A", "ACL preservation", MetadataFeature::Acls),
+        (
+            "-X",
+            "extended-attribute preservation",
+            MetadataFeature::ExtendedAttributes,
+        ),
+        (
+            "-S",
+            "sparse-file preservation",
+            MetadataFeature::SparseFiles,
+        ),
     ]
     .into_iter()
     .enumerate()
     {
+        if matches!(
+            rust_rsync_reference::metadata_capabilities().status(feature),
+            Some(CapabilityStatus::Supported)
+        ) {
+            continue;
+        }
         let destination = root.join(format!("destination-{index}"));
         let error = rust_rsync_reference::run(
             parse_invocation([
@@ -469,4 +486,112 @@ fn unavailable_metadata_requests_fail_before_destination_mutation() {
         assert!(!destination.exists());
     }
     clean(&root);
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_acl_named_stream_and_sparse_adapters_preserve_metadata() {
+    const FILE_ATTRIBUTE_SPARSE_FILE: u32 = 0x0000_0200;
+
+    let root = temporary_root();
+    let source = root.join("source");
+    let destination = root.join("destination");
+    fs::create_dir_all(&source).unwrap();
+    let source_file = source.join("metadata.bin");
+    let mut contents = vec![0_u8; 3 * 64 * 1024];
+    contents[0] = 1;
+    *contents.last_mut().unwrap() = 2;
+    fs::write(&source_file, &contents).unwrap();
+    fs::write(named_stream(&source_file, "hasebench"), b"opaque\x00stream").unwrap();
+
+    let acl_result = Command::new("icacls.exe")
+        .arg(&source_file)
+        .arg("/inheritance:d")
+        .output()
+        .unwrap();
+    assert!(acl_result.status.success());
+    let source_sddl = canonical_acl_sddl(&source_file);
+
+    rust_rsync_reference::run(
+        parse_invocation([
+            "-aAXS".into(),
+            format!("{}/", source.display()),
+            format!("{}/", destination.display()),
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+
+    let destination_file = destination.join("metadata.bin");
+    assert_eq!(fs::read(&destination_file).unwrap(), contents);
+    assert_eq!(
+        fs::read(named_stream(&destination_file, "hasebench")).unwrap(),
+        b"opaque\x00stream"
+    );
+    assert_eq!(canonical_acl_sddl(&destination_file), source_sddl);
+    assert_ne!(
+        fs::metadata(&destination_file).unwrap().file_attributes() & FILE_ATTRIBUTE_SPARSE_FILE,
+        0
+    );
+    assert!(allocated_sparse_bytes(&destination_file) < contents.len() as u64);
+    clean(&root);
+}
+
+#[cfg(windows)]
+fn named_stream(path: &Path, name: &str) -> PathBuf {
+    let mut value: OsString = path.as_os_str().to_owned();
+    value.push(":");
+    value.push(name);
+    PathBuf::from(value)
+}
+
+#[cfg(windows)]
+fn acl_sddl(path: &Path) -> String {
+    const SCRIPT: &str =
+        "$ErrorActionPreference='Stop'; (Get-Acl -LiteralPath $env:HASEBENCH_ACL_PATH).Sddl";
+    let output = Command::new("pwsh.exe")
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            SCRIPT,
+        ])
+        .env("HASEBENCH_ACL_PATH", path)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    String::from_utf8(output.stdout).unwrap().trim().to_owned()
+}
+
+#[cfg(windows)]
+fn canonical_acl_sddl(path: &Path) -> (String, Vec<String>) {
+    let sddl = acl_sddl(path);
+    let Some(first_ace) = sddl.find('(') else {
+        return (sddl, Vec::new());
+    };
+    let header = sddl[..first_ace].to_owned();
+    let mut aces = sddl[first_ace..]
+        .split_inclusive(')')
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    aces.sort();
+    (header, aces)
+}
+
+#[cfg(windows)]
+fn allocated_sparse_bytes(path: &Path) -> u64 {
+    let output = Command::new("fsutil.exe")
+        .args(["sparse", "queryrange"])
+        .arg(path)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let values = String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .filter_map(|token| token.strip_prefix("0x"))
+        .map(|value| u64::from_str_radix(value, 16).unwrap())
+        .collect::<Vec<_>>();
+    assert!(!values.is_empty() && values.len() % 2 == 0);
+    values.iter().skip(1).step_by(2).sum()
 }
