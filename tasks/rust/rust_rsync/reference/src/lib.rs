@@ -18,6 +18,8 @@ use rust_rsync::fs::{CapabilityOutcome, CapabilityReport, CapabilityStatus, Meta
 use rust_rsync::{Endpoint, Invocation, Options, PathSpec};
 use same_file::Handle;
 
+pub mod delta;
+
 #[derive(Debug, Clone)]
 struct ActiveRule {
     rule: FilterRule,

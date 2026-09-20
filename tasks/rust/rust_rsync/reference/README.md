@@ -25,6 +25,10 @@ Implemented and tested:
 - Windows named-stream enumeration with opaque byte copying in Rust;
 - Windows sparse output with measured allocation reduction through argument-array
   `fsutil` calls;
+- rolling weak block signatures plus pinned SHA-256 0.10.9 strong signatures,
+  literal/match planning, and length/digest-verified reconstruction;
+- localized-edit block reuse with literal-byte accounting, output bounds, and
+  malformed-plan rejection;
 - pre-mutation exit-23 diagnostics for explicit metadata requests that the
   selected platform adapter cannot honor;
 - mutation-free `--dry-run`;
@@ -46,7 +50,7 @@ Not yet implemented:
 - complete option and filter semantics;
 - Unix ownership, ACL, xattr, and sparse adapters plus remaining metadata
   mapping;
-- rolling delta and interruption recovery;
+- streaming delta memory bounds and interruption recovery;
 - protocol-31 framing and remote-shell roles;
 - daemon client/server, modules, and authentication;
 - every remaining row in `COMPATIBILITY_MATRIX.csv`.

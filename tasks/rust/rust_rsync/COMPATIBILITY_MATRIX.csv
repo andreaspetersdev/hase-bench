@@ -26,8 +26,8 @@ META-007,3,all,preserve extended attributes as opaque bytes,-X,fs,visible_xattrs
 META-008,3,all,sparse mode preserves bytes and reduces allocation when supported,-S,fs|delta,visible_sparse,diff_sparse,capability-dependent,reference
 SAFE-001,3,all,destination writes and deletes remain confined to root,default,planner|fs,visible_safe_paths,hidden_traversal_reparse,required,planned
 SAFE-002,3,all,case-folded or platform-alias collisions fail before mutation,default,planner|fs,visible_case_collision,hidden_windows_aliases,capability-dependent,planned
-DELTA-001,4,all,rolling and strong signatures reconstruct exact bytes,default,delta,visible_delta_rebuild,hidden_random_delta,required,planned
-DELTA-002,4,all,small edits transfer fewer literal bytes than whole file,default,delta,visible_delta_reuse,hidden_adversarial_delta,required,planned
+DELTA-001,4,all,rolling and strong signatures reconstruct exact bytes,default,delta,visible_delta_rebuild,hidden_random_delta,required,reference
+DELTA-002,4,all,small edits transfer fewer literal bytes than whole file,default,delta,visible_delta_reuse,hidden_adversarial_delta,required,reference
 DELTA-003,4,all,delta memory is bounded by block and pipeline limits,default,delta,visible_delta_bounds,hidden_large_file_memory,required,planned
 RECOVER-001,4,all,partial retains configured interrupted output,--partial,session|fs,visible_partial,hidden_interrupt_partial,required,planned
 RECOVER-002,4,all,partial-dir isolates reusable partial data,--partial-dir,session|fs,visible_partial_dir,diff_partial_dir,required,planned
