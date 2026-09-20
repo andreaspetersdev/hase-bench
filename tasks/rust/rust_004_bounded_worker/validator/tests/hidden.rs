@@ -162,6 +162,41 @@ fn handler_failure_recovers_failed_and_queued_jobs_in_order() {
 }
 
 #[test]
+fn close_after_observed_failure_preserves_the_failed_state() {
+    let (started_tx, started_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let worker = BoundedWorker::new(1, move |_job: &i32| {
+        started_tx.send(()).unwrap();
+        release_rx.recv().unwrap();
+        Err::<i32, _>("permanent failure")
+    })
+    .unwrap();
+
+    assert_eq!(worker.try_submit(7).unwrap().sequence, 0);
+    started_rx.recv().unwrap();
+    release_tx.send(()).unwrap();
+
+    for _ in 0..100_000 {
+        if worker.status() == WorkerStatus::Failed("permanent failure") {
+            break;
+        }
+        std::thread::yield_now();
+    }
+    assert_eq!(worker.status(), WorkerStatus::Failed("permanent failure"));
+
+    worker.close();
+    assert_eq!(worker.status(), WorkerStatus::Failed("permanent failure"));
+    assert_eq!(worker.try_submit(8), Err(SubmitError::Failed(8)));
+    assert_eq!(
+        worker.take_undelivered(),
+        vec![Undelivered {
+            sequence: 0,
+            job: 7,
+        }]
+    );
+}
+
+#[test]
 fn close_drains_and_is_idempotent_even_without_work() {
     let worker = BoundedWorker::new(4, |job: &usize| Ok::<usize, ()>(job + 1)).unwrap();
     for job in 0..4 {
@@ -179,6 +214,7 @@ fn close_drains_and_is_idempotent_even_without_work() {
 }
 
 #[test]
+#[allow(clippy::borrowed_box)]
 fn drop_performs_a_draining_close() {
     let count = Arc::new(AtomicUsize::new(0));
     let observed = Arc::clone(&count);

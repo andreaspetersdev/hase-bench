@@ -1,0 +1,8 @@
+{
+  "id": "rust_005",
+  "title": "Incremental binary frame parser",
+  "language": "rust",
+  "standard": "Rust 2024",
+  "difficulty": "hard",
+  "version": 1
+}

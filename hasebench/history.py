@@ -157,7 +157,8 @@ def render_table(data: dict[str, object]) -> str:
     result_rows = [
         (f"{row['task']} v{row['task_version']}", model_ids[row["configuration"]], row["outcome"],
          _format_tokens(row["context_tokens"]), _format_tokens(row["generated_tokens"]),
-         _format_speed(row["generation_tokens_per_second"]))
+         _format_speed(row["generation_tokens_per_second"]),
+         _format_duration(row["total_seconds"]), _format_duration(row["model_seconds"], estimated=True))
         for row in sorted(data["selected"],
                           key=lambda item: (item["task"], item["task_version"],
                                             model_ids[item["configuration"]]))
@@ -165,8 +166,11 @@ def render_table(data: dict[str, object]) -> str:
     tables = [
         _plain_table("Models", ("Model", "Agent", "Configuration", "Backend", "Variant"), model_rows),
         _plain_table("Tasks", ("Task", "Severity", "Description"), task_rows),
-        _plain_table("Results", ("Task", "Model", "Result", "Context", "Generated", "Speed"),
-                     result_rows),
+        _plain_table(
+            "Results",
+            ("Task", "Model", "Result", "Context", "Generated", "Speed", "Execution time", "Model execution"),
+            result_rows,
+        ),
     ]
     return "\n\n".join(tables) + "\n"
 
@@ -200,6 +204,15 @@ def _format_tokens(value: int | None) -> str:
 
 def _format_speed(value: float | None) -> str:
     return "unavailable" if value is None else f"{value:.2f} tok/s"
+
+
+def _format_duration(value: float | None, estimated: bool = False) -> str:
+    if value is None:
+        return "unavailable"
+    marker = " (est.)" if estimated else ""
+    minutes, seconds = divmod(value, 60)
+    duration = f"{int(minutes)}m {seconds:.1f}s" if minutes else f"{seconds:.1f}s"
+    return duration + marker
 
 
 def render_csv(data: dict[str, object]) -> str:

@@ -1,6 +1,6 @@
 {
-  "id": "rust_004",
-  "title": "Bounded channel worker",
+  "id": "rust_006",
+  "title": "Trait-driven storage refactor",
   "language": "rust",
   "standard": "Rust 2024",
   "difficulty": "hard",

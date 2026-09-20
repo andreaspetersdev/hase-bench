@@ -24,6 +24,7 @@ from hasebench.tasks import discover_tasks, find_task
 from hasebench.validation import (
     CommandResult,
     ValidationResult,
+    _cargo_executable,
     _cmake_debug_flags,
     _deduplicate_environment,
     validate_rust,
@@ -64,7 +65,7 @@ class FrameworkTests(unittest.TestCase):
     def test_rust_tasks_are_discovered(self) -> None:
         self.assertEqual(
             [task.identifier for task in discover_tasks() if task.language == "rust"],
-            ["rust_001", "rust_002", "rust_003", "rust_004"],
+            ["rust_001", "rust_002", "rust_003", "rust_004", "rust_005", "rust_006", "rust_007"],
         )
         self.assertEqual(find_task("rust_001").standard, "Rust 2024")
         self.assertEqual(find_task("rust_002").standard, "Rust 2024")
@@ -72,6 +73,12 @@ class FrameworkTests(unittest.TestCase):
         self.assertEqual(find_task("rust_003").difficulty, "easy")
         self.assertEqual(find_task("rust_004").standard, "Rust 2024")
         self.assertEqual(find_task("rust_004").difficulty, "hard")
+        self.assertEqual(find_task("rust_005").standard, "Rust 2024")
+        self.assertEqual(find_task("rust_005").difficulty, "hard")
+        self.assertEqual(find_task("rust_006").standard, "Rust 2024")
+        self.assertEqual(find_task("rust_006").difficulty, "hard")
+        self.assertEqual(find_task("rust_007").standard, "Rust 2024")
+        self.assertEqual(find_task("rust_007").difficulty, "very hard")
 
     def test_workspace_contains_no_hidden_validator(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -190,7 +197,8 @@ class FrameworkTests(unittest.TestCase):
         task = Task("rust_001", "Rust task", "rust", "rust-2024", "easy", 1, Path("task"))
         success = CommandResult(0, "", 0.0)
         workspace = Path("workspace")
-        with patch("hasebench.validation._run", return_value=success) as run:
+        with patch("hasebench.validation._cargo_executable", return_value="cargo"), \
+             patch("hasebench.validation._run", return_value=success) as run:
             result = validate_rust(workspace, task)
 
         self.assertEqual(result.outcome, "SUCCESS")
@@ -213,6 +221,16 @@ class FrameworkTests(unittest.TestCase):
         self.assertEqual(hidden_arguments[7], "--config")
         self.assertTrue(hidden_arguments[8].startswith("patch.crates-io.rust_001.path="))
         self.assertEqual(run.call_args_list[3].args[0], [*hidden_arguments, "--no-run"])
+
+    def test_cargo_resolution_falls_back_to_the_standard_user_installation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cargo_home = Path(temporary)
+            executable = cargo_home / "bin" / ("cargo.exe" if __import__("os").name == "nt" else "cargo")
+            executable.parent.mkdir()
+            executable.touch()
+            with patch("hasebench.validation.shutil.which", return_value=None), \
+                 patch.dict("hasebench.validation.os.environ", {"CARGO_HOME": str(cargo_home)}):
+                self.assertEqual(_cargo_executable(), str(executable))
 
     def test_rust_validation_stops_after_a_build_failure(self) -> None:
         task = Task("rust_001", "Rust task", "rust", "rust-2024", "easy", 1, Path("task"))
@@ -323,13 +341,14 @@ class FrameworkTests(unittest.TestCase):
             "task_filter": None, "agent": "opencode", "model": "test", "backend": "test", "variant": None,
         })()
         row = object()
-        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row)] + [(0, row)] * 23) as run_one, \
+        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row)] + [(0, row)] * 26) as run_one, \
              patch("hasebench.cli.write_markdown_summary"), redirect_stdout(StringIO()) as output:
             self.assertEqual(_run_all(None, arguments), 1)
         self.assertIn("Summary:", output.getvalue())
         self.assertEqual(
             [call.args[0].identifier for call in run_one.call_args_list],
-            [f"cpp_{index:03}" for index in range(1, 22)] + ["rust_001", "rust_002", "rust_003", "rust_004"],
+            [f"cpp_{index:03}" for index in range(1, 22)]
+            + ["rust_001", "rust_002", "rust_003", "rust_004", "rust_005", "rust_006", "rust_007"],
         )
 
     def test_markdown_summary_contains_a_result_table(self) -> None:

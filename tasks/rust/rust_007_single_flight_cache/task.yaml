@@ -1,0 +1,8 @@
+{
+  "id": "rust_007",
+  "title": "Concurrent single-flight cache",
+  "language": "rust",
+  "standard": "Rust 2024",
+  "difficulty": "very hard",
+  "version": 1
+}

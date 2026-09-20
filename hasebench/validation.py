@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import time
 from dataclasses import dataclass
@@ -84,6 +85,16 @@ def _cmake_debug_flags() -> str | None:
     return f'/FI"{header}"'
 
 
+def _cargo_executable() -> str:
+    """Find Cargo on PATH or in its standard per-user installation directory."""
+    discovered = shutil.which("cargo")
+    if discovered is not None:
+        return discovered
+    cargo_home = Path(os.environ.get("CARGO_HOME", Path.home() / ".cargo"))
+    candidate = cargo_home / "bin" / ("cargo.exe" if os.name == "nt" else "cargo")
+    return str(candidate) if candidate.is_file() else "cargo"
+
+
 def _configure_arguments(source: Path, build_dir: Path, *, extra: list[str] | None = None) -> list[str]:
     arguments = ["cmake", "-S", str(source), "-B", str(build_dir)]
     flags = _cmake_debug_flags()
@@ -117,10 +128,11 @@ def validate_cpp(workspace: Path, task: Task) -> ValidationResult:
 
 
 def validate_rust(workspace: Path, task: Task) -> ValidationResult:
+    cargo = _cargo_executable()
     manifest = workspace / "Cargo.toml"
     build_dir = workspace / "build" / "hasebench"
     build = _run(
-        ["cargo", "build", "--locked", "--manifest-path", str(manifest), "--target-dir", str(build_dir)],
+        [cargo, "build", "--locked", "--manifest-path", str(manifest), "--target-dir", str(build_dir)],
         workspace,
         120,
     )
@@ -128,7 +140,7 @@ def validate_rust(workspace: Path, task: Task) -> ValidationResult:
         return ValidationResult(task.identifier, build, None, None, "COMPILATION_FAILURE")
 
     visible_arguments = [
-        "cargo", "test", "--locked", "--manifest-path", str(manifest), "--target-dir", str(build_dir)
+        cargo, "test", "--locked", "--manifest-path", str(manifest), "--target-dir", str(build_dir)
     ]
     visible_compile = _run([*visible_arguments, "--no-run"], workspace, 120)
     if visible_compile.returncode != 0:
@@ -140,7 +152,7 @@ def validate_rust(workspace: Path, task: Task) -> ValidationResult:
     workspace_path = json.dumps(workspace.resolve().as_posix())
     workspace_patch = f"patch.crates-io.{task.identifier}.path={workspace_path}"
     hidden_arguments = [
-        "cargo",
+        cargo,
         "test",
         "--locked",
         "--manifest-path",

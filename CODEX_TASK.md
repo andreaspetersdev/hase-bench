@@ -1182,16 +1182,47 @@ queued accepted job. Capacity counts only waiting jobs, not the in-flight job.
 Visible and independent hidden tests use channel gates rather than sleeps to
 prove backpressure, sequence continuity, ordered concurrent admission, drain,
 failure stop/recovery, and ownership preservation.
+The failure state is permanent: a later `close()` must retain both
+`WorkerStatus::Failed` and the failed-submission classification.
 
-The remaining compact Rust suite is reserved as follows. These are planning
-contracts only; do not create their starter projects until each preceding
-increment is reviewed.
+`rust_005` implements a dependency-free incremental binary frame parser. Its
+exact wire format combines magic, version, kind, a big-endian payload length,
+arbitrary payload bytes, and an FNV-1a integrity field. The parser accepts any
+chunking, publishes multiple frames in order, enforces its payload bound as
+soon as the header is complete, retains frames completed before a later error,
+and makes malformed/truncated input permanently observable. Independent tests
+replay every byte split and cover error precedence, exact truncation state,
+checksum diagnostics, ownership draining, and post-finish behavior.
+
+`rust_006` implements a multi-file trait-driven storage refactor. The legacy
+memory-backed document service gains object-safe `Storage`, `Transaction`, and
+middleware boundaries while retaining its concrete compatibility path and
+non-generic public `DocumentService` type; the constructor alone is generic
+over storage implementations.
+Whole-batch key validation precedes transaction creation; middleware runs in
+defined registration/reverse order; all post-begin failures roll back exactly
+once; and rollback failure retains the original typed error. Independent
+hidden backends exercise begin, operation, commit, and rollback failures,
+transaction isolation/closure, caller-owned results, and middleware ordering
+without downcasting or implementation-specific hooks.
+
+`rust_007` implements a generic concurrent single-flight cache using only the
+standard library. Its written state model separates absent, loading, and ready
+keys; loaders execute outside cache locks, waiters share one typed flight
+result, and same-thread same-key recursion fails instead of deadlocking.
+Deterministic hashing assigns exact per-shard quotas, injected ticks define
+publication-based TTL, ready hits update LRU-style recency, and in-flight work
+does not consume capacity. Panic/error cleanup and idempotent close both wake
+waiters, while late loaders cannot repopulate a closed cache. Hidden channel
+and barrier orchestration checks progress, cleanup, eviction, expiry, and
+shutdown without relying on randomized stress.
+
+The remaining compact Rust suite is reserved as follows. This is a planning
+contract only; do not create its starter project until the preceding increment
+is reviewed.
 
 | ID | Severity | Planned task and required review boundary |
 | --- | --- | --- |
-| `rust_005` | High | Incremental binary frame parser. Cover every header/payload split, multiple frames per chunk, size/overflow policy, arbitrary payload bytes, completed-frame preservation, explicit error precedence, and permanent failure state. |
-| `rust_006` | High | Trait-driven storage refactor. Require an object-safe backend/transaction boundary across multiple files, deterministic middleware order, typed errors, rollback, owned results, and hidden injected backends without downcasting. |
-| `rust_007` | Very high | Concurrent single-flight cache. Combine sharding, bounded capacity, caller-controlled TTL, per-key loading, LRU-style eviction, disjoint-key progress, failure/panic wake-up, and cleanup under deterministic scheduling. |
 | `rust_008` | Very high | Cancellation-safe async service. With a pinned runtime, combine bounded admission, multiplexing, per-stream ordering, injected-clock deadlines, cancellation, graceful shutdown, and transport failure using deterministic fake time and transport. |
 
 For High tasks, the design review must identify at least two interacting state

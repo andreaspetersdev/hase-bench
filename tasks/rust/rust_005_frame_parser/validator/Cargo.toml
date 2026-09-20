@@ -1,0 +1,7 @@
+[package]
+name = "rust_005_hidden"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rust_005 = "=0.1.0"

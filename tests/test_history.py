@@ -42,6 +42,10 @@ class HistoryTests(unittest.TestCase):
             self.assertIn("AGENT_TIMEOUT", table)
             self.assertIn("4,096", table)
             self.assertIn("50.00 tok/s", table)
+            self.assertIn("Execution time", table)
+            self.assertIn("Model execution", table)
+            self.assertIn("2.0s", table)
+            self.assertIn("4.0s (est.)", table)
             exported = list(csv.DictReader(StringIO(render_csv(data))))
             self.assertEqual(len(exported), 4)
             self.assertEqual({row["run_id"] for row in exported if row["selected"] == "True"},
