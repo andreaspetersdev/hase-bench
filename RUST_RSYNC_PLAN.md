@@ -8,10 +8,12 @@ release in local, remote-shell, and daemon modes. The project is a long-horizon
 capstone after the generic Rust task pipeline works. Implementation phases are
 checkpoints inside one task, not separate tasks with reduced final scope.
 
-Before publishing version 1, record the exact upstream release, protocol
-versions, `rsync(1)` and `rsyncd.conf(5)` manuals, Rust toolchain, dependency
-lockfile, supported Windows/Linux versions, and filesystem test environments.
-Create an option-and-behavior matrix from that pinned documentation. Each row
+Before publishing version 1, define the supported rsync 3.x compatibility
+band and minimum protocol, and record the exact upstream implementation used
+by each validation run. Record the applicable `rsync(1)` and
+`rsyncd.conf(5)` manuals, Rust toolchain, dependency lockfile, supported
+Windows/Linux versions, and filesystem test environments. Create an
+option-and-behavior matrix from that baseline. Each row
 must identify the implementation module, visible test, hidden or differential
 test, and any explicit host-capability rule. The final pass criterion is the
 whole matrix, not a selected subset. Changes to the matrix, starter, or
@@ -19,7 +21,7 @@ authoritative tests after comparable results exist require a task version bump.
 
 ## Phase 0 — Benchmark design and validation fixture
 
-1. Define CLI and wire compatibility against the pinned upstream release,
+1. Define CLI and wire compatibility against the rsync 3.x baseline,
    including direction (push/pull), error and exit semantics, and daemon config.
 2. Record platform rules for drive letters and UNC paths, case sensitivity,
    timestamps, permissions, ownership, ACLs, extended attributes, links,
@@ -27,7 +29,8 @@ authoritative tests after comparable results exist require a task version bump.
 3. Design a modular starter with CLI, transfer planner, file-system adapter,
    delta engine, wire protocol, remote-shell transport, and daemon modules.
 4. Build isolated fixtures for local transfers and loopback remote-shell/daemon
-   transfers. Pin an upstream rsync binary in the validator environment.
+   transfers. Require a compatible upstream rsync 3.x binary in the validator
+   environment and record its exact version and capabilities in each run.
 5. Write the author reference and independent tests before publishing the
    task. Verify the clean starter fails meaningfully and the reference passes
    on both operating systems.

@@ -1239,10 +1239,12 @@ larger random stress loop alone does not justify Very-high severity.
 Reserve `rust_rsync` as a single Very-high, long-horizon cross-platform rsync-clone
 task. The agent must build a complete functional Rust implementation, runnable
 on both Windows and Linux, rather than a local-only file copier. At task
-authoring time, pin an upstream rsync release and its official `rsync(1)` and
-`rsyncd.conf(5)` manuals as the compatibility baseline. The contract must
-cover local, remote-shell, and daemon modes; interoperability with the pinned
-upstream implementation; the delta-transfer protocol; option parsing and
+authoring time, define an rsync 3.x compatibility band, minimum protocol, and
+applicable `rsync(1)` and `rsyncd.conf(5)` behavior. Record the exact upstream
+implementation used by each validation run without making one package build a
+task requirement. The contract must cover local, remote-shell, and daemon
+modes; interoperability with a compatible upstream implementation; the
+delta-transfer protocol; option parsing and
 filter rules; traversal, deletion, partial/resumed transfers, checksums,
 preservation of supported metadata, diagnostics, and exit codes. Specify
 Windows drive/UNC paths, case behavior, reparse points, and filesystem
@@ -1253,7 +1255,7 @@ task must not quietly omit an entire transfer mode or supported feature.
 This remains one benchmark project. Its starter should provide a modular CLI,
 transport, protocol, filesystem, and transfer skeleton with visible integration
 tests. The independent validator should test both operating systems and use
-the pinned upstream rsync as a differential peer for local, remote-shell, and
+a compatible upstream rsync 3.x installation as a differential peer for local, remote-shell, and
 daemon scenarios, including interrupted transfers and adversarial paths. Give
 the task a substantially larger agent/build/test time budget than the compact
 Rust tasks. Do not claim completion from Linux-only validation or from a
