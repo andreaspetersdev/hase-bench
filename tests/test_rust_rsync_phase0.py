@@ -72,8 +72,20 @@ def test_windows_capability_probe_reports_every_explicit_outcome(tmp_path: Path)
     assert isinstance(result["symlinks"]["supported"], bool)
     assert isinstance(result["long_paths_over_260"]["supported"], bool)
     assert result["timestamp"]["absolute_error_ns"] >= 0
-    assert result["sparse_allocation_probe"]
-    assert result["acl_probe"]
+    for capability in (
+        "readonly_mapping",
+        "named_streams",
+        "python_xattr_api",
+        "sparse_files",
+        "acl_read",
+        "ownership_mapping",
+    ):
+        assert isinstance(result[capability]["supported"], bool)
+        assert "error" in result[capability]
+    assert result["ownership_mapping"] == {
+        "supported": False,
+        "error": "no implicit Windows SID to Unix uid/gid mapping",
+    }
 
 
 def test_starter_layout_matches_the_reviewed_module_design() -> None:

@@ -29,9 +29,13 @@ daemon push/pull. Its self-check uses `/usr/bin/rsync` for both roles; the
 unfinished Rust starter is expected to fail when supplied as the candidate.
 
 `windows_capabilities.py` records case behavior, timestamp representation,
-hard-link and symlink creation, long-path behavior, and explicit deferred
-capabilities. It creates only temporary probe entries and requires no elevated
-privileges.
+read-only mapping, hard-link and symlink creation, long-path behavior, NTFS
+named-stream byte round-trips, `fsutil` sparse-range support, `icacls` ACL
+inspection, Python xattr API availability, and the explicit lack of an implicit
+SID-to-uid/gid ownership mapping. Each capability is a structured
+`supported`/`error` outcome. The probe creates only temporary entries and
+requires no elevated privileges; command-backed failures are recorded rather
+than hidden or treated as a passing skip.
 
 `windows_wsl_local_diff.py` runs a native Windows candidate and WSL rsync over
 separate trees in one Windows temporary directory. It independently compares

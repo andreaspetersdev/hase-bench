@@ -8,6 +8,9 @@ import json
 import os
 from pathlib import Path
 import platform
+import shutil
+import stat
+import subprocess
 import tempfile
 
 
@@ -17,6 +20,76 @@ def attempt(action) -> tuple[bool, str | None]:
         return True, None
     except OSError as error:
         return False, f"{type(error).__name__}: {error}"
+
+
+def command_capability(arguments: list[str]) -> tuple[bool, str | None]:
+    executable = shutil.which(arguments[0])
+    if executable is None:
+        return False, f"executable not found: {arguments[0]}"
+    try:
+        result = subprocess.run(
+            [executable, *arguments[1:]],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=10.0,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        return False, f"{type(error).__name__}: {error}"
+    if result.returncode != 0:
+        output = result.stdout.strip()
+        return False, f"exit {result.returncode}: {output}"
+    return True, None
+
+
+def probe_readonly_mapping(path: Path) -> tuple[bool, str | None]:
+    if os.name != "nt":
+        return False, "Windows-only FILE_ATTRIBUTE_READONLY probe"
+    try:
+        path.write_bytes(b"permissions")
+        os.chmod(path, stat.S_IREAD)
+        attributes = path.stat().st_file_attributes
+        supported = bool(attributes & stat.FILE_ATTRIBUTE_READONLY)
+        if not supported:
+            return False, "setting S_IREAD did not set FILE_ATTRIBUTE_READONLY"
+        return True, None
+    except OSError as error:
+        return False, f"{type(error).__name__}: {error}"
+    finally:
+        if path.exists():
+            os.chmod(path, stat.S_IWRITE)
+
+
+def probe_named_stream(path: Path) -> tuple[bool, str | None]:
+    if os.name != "nt":
+        return False, "Windows-only NTFS named-stream probe"
+    stream = Path(f"{path}:hasebench")
+    payload = b"opaque-stream-value\x00\xff"
+    try:
+        path.write_bytes(b"base")
+        stream.write_bytes(payload)
+        if stream.read_bytes() != payload:
+            return False, "named stream bytes did not round-trip"
+        return True, None
+    except OSError as error:
+        return False, f"{type(error).__name__}: {error}"
+
+
+def probe_sparse_file(path: Path) -> tuple[bool, str | None]:
+    if os.name != "nt":
+        return False, "Windows-only fsutil sparse-range probe"
+    with path.open("wb") as stream:
+        stream.truncate(1024 * 1024)
+    supported, error = command_capability(["fsutil", "sparse", "setflag", str(path)])
+    if not supported:
+        return False, error
+    supported, error = command_capability(
+        ["fsutil", "sparse", "setrange", str(path), "0", str(1024 * 1024)]
+    )
+    if not supported:
+        return False, error
+    return command_capability(["fsutil", "sparse", "queryflag", str(path)])
 
 
 def probe(root: Path) -> dict[str, object]:
@@ -42,6 +115,11 @@ def probe(root: Path) -> dict[str, object]:
     os.utime(timestamp, ns=(requested_ns, requested_ns))
     observed_ns = timestamp.stat().st_mtime_ns
 
+    readonly, readonly_error = probe_readonly_mapping(root / "readonly-probe")
+    named_streams, named_stream_error = probe_named_stream(root / "stream-probe")
+    sparse_files, sparse_error = probe_sparse_file(root / "sparse-probe")
+    acl_read, acl_error = command_capability(["icacls", str(case_path)])
+
     return {
         "platform": platform.platform(),
         "os_name": os.name,
@@ -55,9 +133,20 @@ def probe(root: Path) -> dict[str, object]:
             "observed_ns": observed_ns,
             "absolute_error_ns": abs(requested_ns - observed_ns),
         },
-        "python_xattr_api": hasattr(os, "getxattr") and hasattr(os, "setxattr"),
-        "sparse_allocation_probe": "not available through portable Python on Windows",
-        "acl_probe": "deferred to the platform adapter fixture",
+        "readonly_mapping": {"supported": readonly, "error": readonly_error},
+        "named_streams": {"supported": named_streams, "error": named_stream_error},
+        "python_xattr_api": {
+            "supported": hasattr(os, "getxattr") and hasattr(os, "setxattr"),
+            "error": None
+            if hasattr(os, "getxattr") and hasattr(os, "setxattr")
+            else "Python exposes no native Windows xattr API",
+        },
+        "sparse_files": {"supported": sparse_files, "error": sparse_error},
+        "acl_read": {"supported": acl_read, "error": acl_error},
+        "ownership_mapping": {
+            "supported": False,
+            "error": "no implicit Windows SID to Unix uid/gid mapping",
+        },
         "reparse_policy": "unknown tags must not be traversed by default",
     }
 

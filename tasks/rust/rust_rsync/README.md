@@ -18,7 +18,9 @@ Phase 0 artifacts:
 - `validator/fixture_probe.py` exercises a reference rsync in isolated local,
   loopback remote-shell, and loopback daemon modes.
 - `validator/differential_fixture.py` compares candidate and oracle roles.
-- `validator/windows_capabilities.py` records filesystem capability outcomes.
+- `validator/windows_capabilities.py` records structured filesystem capability
+  outcomes for links, read-only mapping, named streams, sparse ranges, ACL
+  inspection, xattr APIs, ownership mapping, timestamps, case, and long paths.
 - `validator/windows_wsl_local_diff.py` compares native local output with WSL rsync.
 - `starter/` is the compiling unpublished Rust module skeleton.
 - `reference/` is the in-progress author reference; its README lists gaps.
