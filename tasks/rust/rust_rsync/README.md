@@ -17,6 +17,10 @@ Phase 0 artifacts:
 - `STARTER_DESIGN.md` defines the future Rust module boundaries.
 - `validator/fixture_probe.py` exercises a reference rsync in isolated local,
   loopback remote-shell, and loopback daemon modes.
+- `validator/differential_fixture.py` compares candidate and oracle roles.
+- `validator/windows_capabilities.py` records filesystem capability outcomes.
+- `starter/` is the compiling unpublished Rust module skeleton.
+- `reference/` is the in-progress author reference; its README lists gaps.
 
 Run the current Linux/WSL fixture from the repository root:
 

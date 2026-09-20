@@ -1,0 +1,14 @@
+[package]
+name = "rust_rsync_reference"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rust_rsync = { path = "../starter" }
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "rust-rsync"
+path = "src/main.rs"

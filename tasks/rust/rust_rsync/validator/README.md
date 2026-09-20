@@ -21,3 +21,14 @@ The JSON result records the exact rsync banner and each mode's status. A
 missing binary, non-3.x release, protocol below 31, mode failure, or manifest
 mismatch is a hard failure. Host metadata capabilities are handled later by
 the matrix-specific fixtures and are never inferred from this smoke probe.
+
+`differential_fixture.py` accepts separate `--candidate` and `--oracle`
+executables. It checks local archive/delete/dry-run behavior, both client and
+server roles for remote-shell push/pull, and both client and server roles for
+daemon push/pull. Its self-check uses `/usr/bin/rsync` for both roles; the
+unfinished Rust starter is expected to fail when supplied as the candidate.
+
+`windows_capabilities.py` records case behavior, timestamp representation,
+hard-link and symlink creation, long-path behavior, and explicit deferred
+capabilities. It creates only temporary probe entries and requires no elevated
+privileges.
