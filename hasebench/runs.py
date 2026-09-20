@@ -46,18 +46,22 @@ def run_autonomous(
     timeout_seconds: int,
     label: str | None = None,
     variant: str | None = None,
+    output_token_max: int | None = None,
 ) -> AutonomousRunResult:
     started = time.monotonic()
     workspace = prepare_workspace(task, mode="aut_opencode", label=label)
     agent = runner.run(
         AgentRunRequest(
-            workspace, AUTONOMOUS_INSTRUCTION, model_configuration, timeout_seconds, workspace / AGENT_LOG, variant
+            workspace, AUTONOMOUS_INSTRUCTION, model_configuration, timeout_seconds, workspace / AGENT_LOG, variant,
+            output_token_max,
         )
     )
     validation = validate_task(workspace, task)
     outcome = agent.outcome if agent.outcome != "SUCCESS" else validation.outcome
     result = AutonomousRunResult(workspace, agent, validation, outcome, time.monotonic() - started)
-    _write_metadata(result, task, model_configuration, model_name, backend, timeout_seconds, variant)
+    _write_metadata(
+        result, task, model_configuration, model_name, backend, timeout_seconds, variant, output_token_max
+    )
     return result
 
 
@@ -69,6 +73,7 @@ def _write_metadata(
     backend: str,
     timeout_seconds: int,
     variant: str | None,
+    output_token_max: int | None,
 ) -> None:
     metadata = {
         "schema_version": 1,
@@ -77,7 +82,13 @@ def _write_metadata(
         "mode": "autonomous",
         "task": {"id": task.identifier, "title": task.title, "version": task.version, "language": task.language},
         "agent": {"name": "opencode", **asdict(result.agent)},
-        "model": {"configuration": model_configuration, "name": model_name, "backend": backend, "variant": variant},
+        "model": {
+            "configuration": model_configuration,
+            "name": model_name,
+            "backend": backend,
+            "variant": variant,
+            "output_token_max": output_token_max,
+        },
         "agent_timeout_seconds": timeout_seconds,
         "timing": {
             "agent_duration_seconds": result.agent.duration_seconds,

@@ -21,6 +21,7 @@ class AgentRunRequest:
     timeout_seconds: int
     log_path: Path
     variant: str | None = None
+    output_token_max: int | None = None
 
 
 @dataclass(frozen=True)
@@ -85,7 +86,7 @@ class OpenCodeAgentRunner:
             "--auto",
             request.instruction,
         ])
-        environment = _agent_environment(request.workspace)
+        environment = _agent_environment(request.workspace, request.output_token_max)
         try:
             # ``opencode.cmd`` launches ``opencode.exe`` as a child on Windows.
             # subprocess.run only terminates the wrapper when its timeout fires,
@@ -229,11 +230,16 @@ def _default_opencode_executable() -> str:
     return "opencode"
 
 
-def _agent_environment(workspace: Path) -> dict[str, str]:
+def _agent_environment(workspace: Path, output_token_max: int | None = None) -> dict[str, str]:
     """Keep temporary files local and prevent loading benchmark-parent config."""
     temporary = workspace / ".hasebench-tmp"
     temporary.mkdir(exist_ok=True)
     environment = dict(os.environ)
+    # Make the per-response ceiling an explicit benchmark setting rather than
+    # allowing an ambient shell override to change otherwise identical runs.
+    environment.pop("OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX", None)
+    if output_token_max is not None:
+        environment["OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX"] = str(output_token_max)
     environment["TMP"] = str(temporary)
     environment["TEMP"] = str(temporary)
     # OpenCode otherwise searches ancestor directories for project rules.

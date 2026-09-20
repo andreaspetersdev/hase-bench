@@ -41,6 +41,14 @@ from hasebench.workspaces import (
 
 
 class FrameworkTests(unittest.TestCase):
+    def test_run_rejects_a_non_positive_output_token_max(self) -> None:
+        with patch("sys.argv", [
+            "hasebench", "run", "cpp_001", "--agent", "opencode", "--model", "hase/qwen",
+            "--output-token-max", "0",
+        ]), self.assertRaises(SystemExit) as exit_result:
+            main()
+        self.assertEqual(exit_result.exception.code, 2)
+
     def test_autonomous_run_rejects_a_bare_server_model_path_before_launch(self) -> None:
         errors = StringIO()
         with patch("sys.argv", ["hasebench", "run", "cpp_001", "--agent", "opencode",
@@ -65,7 +73,10 @@ class FrameworkTests(unittest.TestCase):
     def test_rust_tasks_are_discovered(self) -> None:
         self.assertEqual(
             [task.identifier for task in discover_tasks() if task.language == "rust"],
-            ["rust_001", "rust_002", "rust_003", "rust_004", "rust_005", "rust_006", "rust_007"],
+            [
+                "rust_001", "rust_002", "rust_003", "rust_004", "rust_005", "rust_006", "rust_007",
+                "rust_008",
+            ],
         )
         self.assertEqual(find_task("rust_001").standard, "Rust 2024")
         self.assertEqual(find_task("rust_002").standard, "Rust 2024")
@@ -79,6 +90,8 @@ class FrameworkTests(unittest.TestCase):
         self.assertEqual(find_task("rust_006").difficulty, "hard")
         self.assertEqual(find_task("rust_007").standard, "Rust 2024")
         self.assertEqual(find_task("rust_007").difficulty, "very hard")
+        self.assertEqual(find_task("rust_008").standard, "Rust 2024")
+        self.assertEqual(find_task("rust_008").difficulty, "very hard")
 
     def test_workspace_contains_no_hidden_validator(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -254,7 +267,9 @@ class FrameworkTests(unittest.TestCase):
     def test_opencode_runner_uses_non_interactive_workspace_command(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
-            request = AgentRunRequest(workspace, "solve it", "hase/qwen", 30, workspace / "agent.log", "xhigh")
+            request = AgentRunRequest(
+                workspace, "solve it", "hase/qwen", 30, workspace / "agent.log", "xhigh", 65536
+            )
             process = type("Process", (), {
                 "returncode": 0,
                 "communicate": lambda self, timeout: ('{"type":"text"}\n', None),
@@ -267,6 +282,7 @@ class FrameworkTests(unittest.TestCase):
                 "--format", "json", "--auto", "solve it",
             ])
             self.assertEqual(popen.call_args.kwargs["env"]["TEMP"], str(workspace / ".hasebench-tmp"))
+            self.assertEqual(popen.call_args.kwargs["env"]["OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX"], "65536")
             self.assertEqual(popen.call_args.kwargs["encoding"], "utf-8")
             self.assertEqual(popen.call_args.kwargs["errors"], "replace")
             self.assertEqual(request.log_path.read_text(encoding="utf-8"), '{"type":"text"}\n')
@@ -281,11 +297,16 @@ class FrameworkTests(unittest.TestCase):
     def test_agent_environment_contains_workspace_temp_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
-            environment = _agent_environment(workspace)
+            with patch.dict("hasebench.agents.os.environ", {"OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX": "999"}):
+                environment = _agent_environment(workspace)
             self.assertEqual(environment["TMP"], str(workspace / ".hasebench-tmp"))
             self.assertTrue((workspace / ".hasebench-tmp").is_dir())
             self.assertEqual(environment["OPENCODE_DISABLE_PROJECT_CONFIG"], "1")
+            self.assertNotIn("OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX", environment)
             self.assertIn('/FI"', environment["CL"])
+
+            configured = _agent_environment(workspace, 65536)
+            self.assertEqual(configured["OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX"], "65536")
 
     def test_opencode_telemetry_uses_json_stream_usage_and_excludes_tool_time(self) -> None:
         output = "\n".join([
@@ -313,7 +334,10 @@ class FrameworkTests(unittest.TestCase):
         agent = AgentRunResult("2026-01-01T00:00:00Z", "2026-01-01T00:00:01Z", 1.0, 0, "agent output", "SUCCESS")
 
         class FakeRunner:
+            request: AgentRunRequest | None = None
+
             def run(self, request: AgentRunRequest) -> AgentRunResult:
+                self.request = request
                 request.log_path.write_text(agent.output, encoding="utf-8")
                 return agent
 
@@ -322,8 +346,10 @@ class FrameworkTests(unittest.TestCase):
             workspace.mkdir()
             with patch("hasebench.runs.prepare_workspace", return_value=workspace), \
                  patch("hasebench.runs.validate_task", return_value=validation):
+                runner = FakeRunner()
                 result = run_autonomous(
-                    find_task("cpp_001"), FakeRunner(), "hase/qwen", "Qwen 27B", "llama.cpp", 900, "A3B", "xhigh"
+                    find_task("cpp_001"), runner, "hase/qwen", "Qwen 27B", "llama.cpp", 900, "A3B",
+                    "xhigh", 65536,
                 )
             metadata = (workspace / RUN_METADATA).read_text(encoding="utf-8")
             self.assertEqual(result.outcome, "SUCCESS")
@@ -333,22 +359,28 @@ class FrameworkTests(unittest.TestCase):
             self.assertIn('"title": "Expression evaluator"', metadata)
             self.assertIn('"backend": "llama.cpp"', metadata)
             self.assertIn('"variant": "xhigh"', metadata)
+            self.assertIn('"output_token_max": 65536', metadata)
+            self.assertEqual(runner.request.output_token_max, 65536)
             self.assertIn('"total_duration_seconds"', metadata)
             self.assertIn('"outcome": "SUCCESS"', metadata)
 
     def test_run_all_uses_each_discovered_task_and_continues_after_failure(self) -> None:
         arguments = type("Arguments", (), {
             "task_filter": None, "agent": "opencode", "model": "test", "backend": "test", "variant": None,
+            "output_token_max": None,
         })()
         row = object()
-        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row)] + [(0, row)] * 26) as run_one, \
+        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row)] + [(0, row)] * 27) as run_one, \
              patch("hasebench.cli.write_markdown_summary"), redirect_stdout(StringIO()) as output:
             self.assertEqual(_run_all(None, arguments), 1)
         self.assertIn("Summary:", output.getvalue())
         self.assertEqual(
             [call.args[0].identifier for call in run_one.call_args_list],
             [f"cpp_{index:03}" for index in range(1, 22)]
-            + ["rust_001", "rust_002", "rust_003", "rust_004", "rust_005", "rust_006", "rust_007"],
+            + [
+                "rust_001", "rust_002", "rust_003", "rust_004", "rust_005", "rust_006", "rust_007",
+                "rust_008",
+            ],
         )
 
     def test_markdown_summary_contains_a_result_table(self) -> None:
@@ -358,10 +390,11 @@ class FrameworkTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as temporary:
             with patch("hasebench.reports.repository_root", return_value=Path(temporary)):
-                report = write_markdown_summary([row], "opencode", "hase/qwen", "llama.cpp")
+                report = write_markdown_summary([row], "opencode", "hase/qwen", "llama.cpp", output_token_max=65536)
             content = report.read_text(encoding="utf-8")
         self.assertIn("| Task | Description | Complexity | Agent | Build | Visible | Hidden | Context | Generation |", content)
         self.assertIn("| cpp_001 | Expression evaluator | M | PASS | PASS | PASS | PASS | 4,096 | 200 @ 40.00 tok/s |", content)
+        self.assertIn("OpenCode output-token maximum: `65536`", content)
 
     def test_autonomous_screen_report_includes_validation_details(self) -> None:
         command = CommandResult(0, "", 0.0)
@@ -373,11 +406,12 @@ class FrameworkTests(unittest.TestCase):
         )
         output = StringIO()
         with redirect_stdout(output):
-            _print_run_result(result, "Expression evaluator", "medium", "hase/qwen", None, False)
+            _print_run_result(result, "Expression evaluator", "medium", "hase/qwen", None, 65536, False)
         self.assertIn("Build:      PASS", output.getvalue())
         self.assertIn("Visible:    PASS", output.getvalue())
         self.assertIn("Hidden:     PASS", output.getvalue())
         self.assertIn("Context:    unavailable", output.getvalue())
+        self.assertIn("Output max: 65,536", output.getvalue())
         self.assertIn("Full time:", output.getvalue())
         self.assertIn("Result:     SUCCESS", output.getvalue())
         self.assertIn("Task:       cpp_001 - Expression evaluator", output.getvalue())

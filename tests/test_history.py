@@ -66,9 +66,22 @@ class HistoryTests(unittest.TestCase):
             self.assertIsNone(runs[0].generation_tokens_per_second)
             self.assertIn("unavailable", render_table(report_data(runs)))
 
+    def test_output_token_max_is_part_of_the_comparison_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._write(root, "default", "2026-01-01T00:00:00Z", "qwen", 1, "SUCCESS")
+            self._write(root, "raised", "2026-01-02T00:00:00Z", "qwen", 1, "SUCCESS", output_token_max=65536)
+            runs, errors = load_runs(root)
+            self.assertEqual(errors, [])
+            self.assertEqual(len(latest_attempts(runs)), 2)
+            table = render_table(report_data(runs))
+            self.assertIn("Output max", table)
+            self.assertIn("65,536", table)
+            self.assertIn("default", table)
+
     @staticmethod
     def _write(root: Path, name: str, timestamp: str, model: str, version: int, outcome: str,
-               include_telemetry: bool = True) -> None:
+               include_telemetry: bool = True, output_token_max: int | None = None) -> None:
         workspace = root / name
         workspace.mkdir()
         agent: dict[str, object] = {"name": "opencode"}
@@ -78,7 +91,8 @@ class HistoryTests(unittest.TestCase):
             "schema_version": 1, "run_id": name, "timestamp": timestamp, "mode": "autonomous",
             "task": {"id": "cpp_001", "version": version, "title": "Expression evaluator"},
             "agent": agent,
-            "model": {"configuration": model, "backend": "llama.cpp", "variant": "medium"},
+            "model": {"configuration": model, "backend": "llama.cpp", "variant": "medium",
+                      "output_token_max": output_token_max},
             "validation": {"outcome": outcome}, "outcome": outcome,
             "timing": {"agent_duration_seconds": 1.0, "model_duration_seconds": 4.0,
                        "total_duration_seconds": 2.0},

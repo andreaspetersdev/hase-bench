@@ -32,6 +32,11 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--model-name", help="model name retained in run metadata (defaults to --model)")
     run.add_argument("--backend", default="opencode-managed", help="backend retained in run metadata")
     run.add_argument("--variant", help="OpenCode reasoning-effort variant, for example medium or xhigh")
+    run.add_argument(
+        "--output-token-max",
+        type=_positive_int,
+        help="OpenCode per-response token ceiling set through OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX",
+    )
     run.add_argument("--timeout", type=_positive_int, default=1800, help="agent timeout in seconds (default: 1800)")
     run.add_argument("--label", help="optional safe label included in each workspace name")
     run.add_argument("--verbose", action="store_true", help="print captured agent and validation diagnostics")
@@ -124,11 +129,16 @@ def _run_one(task: object, args: argparse.Namespace, write_summary: bool = True)
         args.timeout,
         args.label,
         args.variant,
+        args.output_token_max,
     )
-    _print_run_result(result, task.title, task.difficulty, args.model, args.variant, args.verbose)
+    _print_run_result(
+        result, task.title, task.difficulty, args.model, args.variant, args.output_token_max, args.verbose
+    )
     row = summary_row(result, task.title, _compact_complexity(task.difficulty))
     if write_summary:
-        path = write_markdown_summary([row], args.agent, args.model, args.backend, args.variant)
+        path = write_markdown_summary(
+            [row], args.agent, args.model, args.backend, args.variant, args.output_token_max
+        )
         print(f"Summary:   {path}")
     return (0 if result.outcome == "SUCCESS" else 1), row
 
@@ -152,18 +162,27 @@ def _run_all(task_filter: str | None, args: argparse.Namespace) -> int:
         except (ValueError, OSError) as error:
             failures += 1
             print(f"{task.identifier}: {_colored_outcome('RUN_ERROR')}; {error}")
-    path = write_markdown_summary(rows, args.agent, args.model, args.backend, args.variant)
+    path = write_markdown_summary(
+        rows, args.agent, args.model, args.backend, args.variant, args.output_token_max
+    )
     print(f"\nCompleted: {len(selected)}\nPASS: {len(selected) - failures}\nFAIL: {failures}\nSummary:   {path}")
     return 0 if failures == 0 else 1
 
 
 def _print_run_result(
-    result: AutonomousRunResult, title: str, difficulty: str, model: str, variant: str | None, verbose: bool
+    result: AutonomousRunResult,
+    title: str,
+    difficulty: str,
+    model: str,
+    variant: str | None,
+    output_token_max: int | None,
+    verbose: bool,
 ) -> None:
     validation = result.validation
     telemetry = result.agent.telemetry
     variant_line = f"\nVariant:    {variant}" if variant else ""
-    print(f"Workspace:  {result.workspace}\nModel:      {model}{variant_line}\n"
+    output_line = f"\nOutput max: {output_token_max:,}" if output_token_max is not None else "\nOutput max: OpenCode default"
+    print(f"Workspace:  {result.workspace}\nModel:      {model}{variant_line}{output_line}\n"
           f"Agent:      {_colored_outcome(result.agent.outcome)} ({_format_duration(result.agent.duration_seconds)})\n"
           f"Context:    {_format_tokens(telemetry.max_context_tokens)}\n"
           f"Generation: {_format_generation(telemetry.generated_tokens, telemetry.generation_tokens_per_second)}\n"

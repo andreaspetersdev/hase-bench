@@ -24,6 +24,7 @@ class RecordedRun:
     model: str
     backend: str
     variant: str
+    output_token_max: int | None
     outcome: str
     validation_outcome: str
     agent_seconds: float | None
@@ -36,7 +37,8 @@ class RecordedRun:
 
     @property
     def configuration(self) -> str:
-        return " / ".join((self.agent, self.model, self.backend, self.variant))
+        output = str(self.output_token_max) if self.output_token_max is not None else "default"
+        return " / ".join((self.agent, self.model, self.backend, self.variant, f"output={output}"))
 
 
 def load_runs(root: Path | None = None) -> tuple[list[RecordedRun], list[str]]:
@@ -65,6 +67,7 @@ def load_runs(root: Path | None = None) -> tuple[list[RecordedRun], list[str]]:
                 str(raw["run_id"]), str(raw["timestamp"]), str(task["id"]), int(task["version"]),
                 str(task["title"]), str(agent["name"]), str(model["configuration"]),
                 str(model["backend"]), str(model.get("variant") or "default"),
+                _integer(model.get("output_token_max")),
                 str(raw["outcome"]), str(raw["validation"]["outcome"]),
                 _number(timing.get("agent_duration_seconds")), model_seconds,
                 _number(timing.get("total_duration_seconds")),
@@ -118,7 +121,8 @@ def report_data(runs: list[RecordedRun]) -> dict[str, object]:
         generated_with_time = sum(tokens for tokens, _ in timed_generation)
         generation_seconds = sum(seconds for _, seconds in timed_generation)
         models.append({"configuration": name, "agent": group[0].agent, "model": group[0].model,
-                       "backend": group[0].backend, "variant": group[0].variant, "tasks": len(group),
+                       "backend": group[0].backend, "variant": group[0].variant,
+                       "output_token_max": group[0].output_token_max, "tasks": len(group),
                        "successes": outcomes.get("SUCCESS", 0), "outcomes": outcomes,
                        "max_context_tokens": max(contexts) if contexts else None,
                        "generated_tokens": sum(generated) if generated else None,
@@ -147,7 +151,8 @@ def render_table(data: dict[str, object]) -> str:
     model_ids = {row["configuration"]: f"M{index}"
                  for index, row in enumerate(data["models"], start=1)}
     model_rows = [
-        (model_ids[row["configuration"]], row["agent"], row["model"], row["backend"], row["variant"])
+        (model_ids[row["configuration"]], row["agent"], row["model"], row["backend"], row["variant"],
+         _format_output_limit(row["output_token_max"]))
         for row in data["models"]
     ]
     task_rows = [
@@ -164,7 +169,9 @@ def render_table(data: dict[str, object]) -> str:
                                             model_ids[item["configuration"]]))
     ]
     tables = [
-        _plain_table("Models", ("Model", "Agent", "Configuration", "Backend", "Variant"), model_rows),
+        _plain_table(
+            "Models", ("Model", "Agent", "Configuration", "Backend", "Variant", "Output max"), model_rows
+        ),
         _plain_table("Tasks", ("Task", "Severity", "Description"), task_rows),
         _plain_table(
             "Results",
@@ -200,6 +207,10 @@ def _plain_table(title: str, headers: tuple[str, ...], rows: list[tuple[object, 
 
 def _format_tokens(value: int | None) -> str:
     return "unavailable" if value is None else f"{value:,}"
+
+
+def _format_output_limit(value: int | None) -> str:
+    return "default" if value is None else f"{value:,}"
 
 
 def _format_speed(value: float | None) -> str:

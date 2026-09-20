@@ -1217,13 +1217,18 @@ waiters, while late loaders cannot repopulate a closed cache. Hidden channel
 and barrier orchestration checks progress, cleanup, eviction, expiry, and
 shutdown without relying on randomized stress.
 
-The remaining compact Rust suite is reserved as follows. This is a planning
-contract only; do not create its starter project until the preceding increment
-is reviewed.
-
-| ID | Severity | Planned task and required review boundary |
-| --- | --- | --- |
-| `rust_008` | Very high | Cancellation-safe async service. With a pinned runtime, combine bounded admission, multiplexing, per-stream ordering, injected-clock deadlines, cancellation, graceful shutdown, and transport failure using deterministic fake time and transport. |
+`rust_008` implements a cancellation-safe async service on pinned Tokio
+1.47.1. Synchronous non-blocking admission counts every queued or active
+request, assigns gap-free accepted sequence numbers, and returns caller-owned
+requests on rejection. Accepted work is serialized per stream while unrelated
+streams progress independently. Dropping a handle cancels queued or active
+work, and one injected-clock deadline spans both phases without leaking the
+capacity permit. The first transport failure is permanent. Graceful close
+rejects new work, drains accepted requests, calls transport close exactly once,
+and continues even if its initiating caller is cancelled. Independent tests
+use controlled transport futures and an injected manual clock to prove the
+ordering, cleanup, progress, deadline, failure, and shutdown invariants without
+wall-clock sleeps.
 
 For High tasks, the design review must identify at least two interacting state
 or ownership boundaries and the hidden validator must test their failure paths.

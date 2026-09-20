@@ -41,7 +41,12 @@ def summary_row(result: AutonomousRunResult, title: str, complexity: str) -> Run
 
 
 def write_markdown_summary(
-    rows: list[RunSummaryRow], agent: str, model: str, backend: str, variant: str | None = None
+    rows: list[RunSummaryRow],
+    agent: str,
+    model: str,
+    backend: str,
+    variant: str | None = None,
+    output_token_max: int | None = None,
 ) -> Path:
     root = repository_root() / "results"
     root.mkdir(exist_ok=True)
@@ -53,6 +58,7 @@ def write_markdown_summary(
         f"- Model/configuration: `{model}`",
         f"- Backend: `{backend}`",
         f"- Variant: `{variant or 'default'}`",
+        f"- OpenCode output-token maximum: `{output_token_max if output_token_max is not None else 'default'}`",
         "",
         "| Task | Description | Complexity | Agent | Build | Visible | Hidden | Context | Generation | Model time | Agent time | Full time | Result | Workspace |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",

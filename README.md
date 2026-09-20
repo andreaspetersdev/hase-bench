@@ -109,7 +109,7 @@ Run one task in a fresh autonomous workspace:
 
 ```powershell
 python -m hasebench run cpp_001 --agent opencode --model hase/qwen27b-q4 --label 27BQ4
-python -m hasebench run cpp_001 --agent opencode --model llama-hase/qwen3.8-27b --backend llama.cpp --variant xhigh --label 27B-xhigh
+python -m hasebench run cpp_001 --agent opencode --model llama-hase/qwen3.8-27b --backend llama.cpp --variant xhigh --output-token-max 65536 --label 27B-xhigh
 python -m hasebench run cpp_001 --agent opencode --model vllm-hase//home/ape/models/hf/Qwen3.8-27B-FP8 --backend vllm --variant medium --label 27BFP8
 ```
 
@@ -131,6 +131,7 @@ python -m hasebench run --all --task cpp_003 --agent opencode --model hase/qwen2
 | `--agent` | Yes | Coding agent to launch. | `--agent opencode` |
 | `--model` | Yes | OpenCode provider/model selector, passed unchanged to OpenCode. | `--model llama-hase/qwen3.8-27b` |
 | `--variant` | No | Provider-specific reasoning effort, passed as OpenCode's `--variant`. | `--variant medium`, `--variant xhigh` |
+| `--output-token-max` | No | Positive per-response token ceiling passed only to the OpenCode child through `OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX`. | `--output-token-max 65536` |
 | `--model-name` | No | Descriptive model name retained in metadata; defaults to `--model`. | `--model-name Qwen-3.8-27B` |
 | `--backend` | No | Backend label retained in metadata and reports. | `--backend llama.cpp` |
 | `--label` | No | Safe suffix for each fresh workspace name. | `--label 27B-xhigh` |
@@ -142,7 +143,18 @@ python -m hasebench run --all --task cpp_003 --agent opencode --model hase/qwen2
 Configure the provider, endpoint, credentials, and any model alias in OpenCode; the benchmark does not hard-code hase connection settings. The selected variant, model/backend labels, and timing are retained in run metadata and reports.
 `--model` must be OpenCode's `provider/model` selector. A server-side path such as `/home/ape/models/hf/Qwen3.8-27B-FP8` is only the model ID; for the configured `vllm-hase` provider, OpenCode lists the full selector as `vllm-hase//home/ape/models/hf/Qwen3.8-27B-FP8`. Check `opencode models vllm-hase` after changing the provider configuration.
 
-Each autonomous run creates a new `_aut_opencode` workspace, runs OpenCode with non-interactive JSON output and permission auto-approval inside that workspace, then validates it with the same visible and hidden CMake validators as manual runs. `TEMP` and `TMP` are redirected into the workspace so ordinary agent-created temporary files are preserved there too. The workspace is always preserved. It contains `hasebench-agent.log` and `hasebench-run.json`, recording the selected configuration, model/backend labels, agent exit status/timing, validation commands/results, and final classification. Use `--verbose` to print captured agent and validation diagnostics.
+The current OpenCode default applies a 32,000-token per-response output ceiling,
+which may be lower than a model's configured `limit.output`. Use
+`--output-token-max` to make
+that ceiling explicit and reproducible for an autonomous run. Reasoning tokens
+and visible output share this allowance, so reasoning-heavy models can reach it
+without producing a tool call. The selected value must also fit the inference
+server's actual context window after the request prompt is included; raising it
+does not enlarge the model or server context. When the option is omitted, the
+framework removes any ambient `OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX` override
+from the child environment and uses OpenCode's default behavior.
+
+Each autonomous run creates a new `_aut_opencode` workspace, runs OpenCode with non-interactive JSON output and permission auto-approval inside that workspace, then validates it with the same visible and hidden CMake validators as manual runs. `TEMP` and `TMP` are redirected into the workspace so ordinary agent-created temporary files are preserved there too. The workspace is always preserved. It contains `hasebench-agent.log` and `hasebench-run.json`, recording the selected configuration, model/backend labels, output-token maximum, agent exit status/timing, validation commands/results, and final classification. Use `--verbose` to print captured agent and validation diagnostics.
 
 After every autonomous task, the console prints its task ID and title, workspace, model, build, visible-test, hidden-test, and final result. It also prints OpenCode's maximum observed context use, generated-token rate, estimated model execution time, agent elapsed time, and full execution time. Model execution time is calculated from OpenCode step timing with recorded tool time removed; full execution time includes workspace preparation, the agent run, and authoritative validation. If an OpenCode version does not emit JSON telemetry, those fields are explicitly shown as unavailable. Every command also writes a Markdown summary table under `results/`; `run --all` produces one aggregate table for the batch, while a single-task run produces a one-row table. The Markdown table and per-run JSON metadata both retain the task title. These generated reports are ignored by Git.
 
@@ -168,7 +180,9 @@ model settings, task severity and description, and results by task/model ID.
 Result rows include maximum observed context, generated tokens, generation
 speed, full execution time, and calculated model execution time; unavailable
 fields remain explicit. Short model IDs keep exact provider selectors and
-backend settings out of the repeated result rows.
+backend settings out of the repeated result rows. The model-settings table also
+shows the OpenCode output-token maximum because runs with different response
+ceilings are different benchmark configurations.
 
 Each result uses the latest saved attempt for that configuration and **task
 version**. Older attempts remain in CSV/JSON exports, with a `selected` flag in
