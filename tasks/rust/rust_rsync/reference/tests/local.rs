@@ -1,4 +1,4 @@
-use std::fs;
+use std::fs::{self, FileTimes, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -129,5 +129,100 @@ fn multiple_sources_copy_into_an_existing_directory() {
     .unwrap();
     assert_eq!(fs::read(destination.join("first")).unwrap(), b"one");
     assert_eq!(fs::read(destination.join("second")).unwrap(), b"two");
+    clean(&root);
+}
+
+#[test]
+fn ordered_filters_and_delete_protection_match_rsync_basics() {
+    let root = temporary_root();
+    let source = root.join("source");
+    let destination = root.join("destination");
+    fs::create_dir_all(&source).unwrap();
+    fs::create_dir_all(&destination).unwrap();
+    fs::write(source.join("keep.txt"), b"keep").unwrap();
+    fs::write(source.join("drop.tmp"), b"drop").unwrap();
+    fs::write(destination.join("protected.tmp"), b"protected").unwrap();
+    fs::write(destination.join("stale.txt"), b"stale").unwrap();
+
+    rust_rsync_reference::run(
+        parse_invocation([
+            "-a".into(),
+            "--delete".into(),
+            "--exclude=*.tmp".into(),
+            format!("{}/", source.display()),
+            format!("{}/", destination.display()),
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(fs::read(destination.join("keep.txt")).unwrap(), b"keep");
+    assert!(!destination.join("drop.tmp").exists());
+    assert_eq!(
+        fs::read(destination.join("protected.tmp")).unwrap(),
+        b"protected"
+    );
+    assert!(!destination.join("stale.txt").exists());
+    clean(&root);
+}
+
+#[test]
+fn filter_files_are_expanded_at_their_command_line_position() {
+    let root = temporary_root();
+    let source = root.join("source");
+    let destination = root.join("destination");
+    let rules = root.join("rules.txt");
+    fs::create_dir_all(&source).unwrap();
+    fs::write(source.join("keep.txt"), b"keep").unwrap();
+    fs::write(source.join("drop.bin"), b"drop").unwrap();
+    fs::write(&rules, "+ keep.txt\n- *\n").unwrap();
+
+    rust_rsync_reference::run(
+        parse_invocation([
+            "-a".into(),
+            "--filter".into(),
+            format!(". {}", rules.display()),
+            format!("{}/", source.display()),
+            format!("{}/", destination.display()),
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(fs::read(destination.join("keep.txt")).unwrap(), b"keep");
+    assert!(!destination.join("drop.bin").exists());
+    clean(&root);
+}
+
+#[test]
+fn archive_preserves_regular_file_modification_time() {
+    let root = temporary_root();
+    let source = root.join("source");
+    let destination = root.join("destination");
+    fs::create_dir_all(&source).unwrap();
+    let source_file = source.join("time.bin");
+    fs::write(&source_file, b"time").unwrap();
+    let expected = UNIX_EPOCH + std::time::Duration::from_secs(1_600_000_123);
+    OpenOptions::new()
+        .write(true)
+        .open(&source_file)
+        .unwrap()
+        .set_times(FileTimes::new().set_modified(expected))
+        .unwrap();
+
+    rust_rsync_reference::run(
+        parse_invocation([
+            "-a".into(),
+            format!("{}/", source.display()),
+            format!("{}/", destination.display()),
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        fs::metadata(destination.join("time.bin"))
+            .unwrap()
+            .modified()
+            .unwrap(),
+        expected
+    );
     clean(&root);
 }

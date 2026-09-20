@@ -10,13 +10,13 @@ COPY-003,2,all,dry run changes nothing and reports planned operations,-n|--dry-r
 COPY-004,2,all,quick check uses size and modification time by default,default,planner,visible_quick_check,diff_quick_check,required,planned
 COPY-005,2,all,checksum selects content comparison,-c|--checksum,planner,visible_checksum,diff_checksum,required,planned
 COPY-006,2,all,whole file bypasses delta matching,-W|--whole-file,delta|session,visible_whole_file,hidden_transfer_accounting,required,planned
-SELECT-001,3,all,ordered include and exclude rules select paths,--include|--exclude,config|planner,visible_filters,diff_filter_order,required,planned
-SELECT-002,3,all,filter merge files obey anchoring and inheritance,-f|--filter,config|planner,visible_filter_file,hidden_filter_merge,required,planned
+SELECT-001,3,all,ordered include and exclude rules select paths,--include|--exclude,config|planner,visible_filters,diff_filter_order,required,verified
+SELECT-002,3,all,filter merge files obey anchoring and inheritance,-f|--filter,config|planner,visible_filter_file,hidden_filter_merge,required,reference
 SELECT-003,3,all,files-from supplies bounded normalized relative paths,--files-from,config|planner,visible_files_from,hidden_files_from_escape,required,planned
 DELETE-001,3,all,delete removes unprotected extraneous destination entries,--delete,planner|fs,visible_delete,diff_delete,required,verified
 DELETE-002,3,all,delete-before during and after preserve timing semantics,--delete-before|--delete-during|--delete-after,planner|session,visible_delete_modes,hidden_delete_failure_order,required,planned
 DELETE-003,3,all,max-delete stops excess deletion with compatible status,--max-delete,planner,visible_max_delete,diff_max_delete,required,planned
-META-001,3,all,preserve modification times at host resolution,-t,fs,visible_times,diff_times,capability-dependent,planned
+META-001,3,all,preserve modification times at host resolution,-t,fs,visible_times,diff_times,capability-dependent,verified
 META-002,3,all,preserve representable permissions,-p,fs,visible_permissions,diff_permissions,capability-dependent,planned
 META-003,3,all,preserve owner and group when authorized,-o|-g,fs,visible_owner_group,diff_owner_group,capability-dependent,planned
 META-004,3,all,preserve symbolic links and selected referent behavior,-l|-L,fs|planner,visible_symlinks,hidden_symlink_escape,capability-dependent,planned

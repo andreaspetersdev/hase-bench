@@ -2,6 +2,8 @@ use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::path::PathBuf;
 
+use crate::config::{FilterDirective, FilterFile, FilterFileKind, FilterRule};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathSpec {
     pub path: PathBuf,
@@ -28,9 +30,13 @@ pub struct Options {
     pub recursive: bool,
     pub dry_run: bool,
     pub delete: bool,
+    pub delete_excluded: bool,
     pub checksum: bool,
     pub whole_file: bool,
     pub verbose: u8,
+    pub preserve_times: bool,
+    pub preserve_permissions: bool,
+    pub filters: Vec<FilterDirective>,
     pub remote_shell: Option<OsString>,
 }
 
@@ -46,6 +52,8 @@ pub enum ParseError {
     MissingOperands,
     MissingOptionValue(&'static str),
     UnknownOption(OsString),
+    InvalidFilter(String),
+    NonUtf8OptionValue(&'static str),
     NonUtf8DaemonUrl,
 }
 
@@ -67,6 +75,8 @@ impl fmt::Display for ParseError {
                 "unsupported option: {}",
                 option.to_string_lossy()
             ),
+            Self::InvalidFilter(rule) => write!(formatter, "invalid filter rule: {rule}"),
+            Self::NonUtf8OptionValue(option) => write!(formatter, "{option} requires UTF-8 text"),
             Self::NonUtf8DaemonUrl => formatter.write_str("daemon URLs must be valid UTF-8"),
         }
     }
@@ -89,6 +99,8 @@ where
         } else if options_enabled && argument == OsStr::new("-a") {
             options.archive = true;
             options.recursive = true;
+            options.preserve_times = true;
+            options.preserve_permissions = true;
         } else if options_enabled
             && (argument == OsStr::new("-r") || argument == OsStr::new("--recursive"))
         {
@@ -99,6 +111,9 @@ where
             options.dry_run = true;
         } else if options_enabled && argument == OsStr::new("--delete") {
             options.delete = true;
+        } else if options_enabled && argument == OsStr::new("--delete-excluded") {
+            options.delete = true;
+            options.delete_excluded = true;
         } else if options_enabled
             && (argument == OsStr::new("-c") || argument == OsStr::new("--checksum"))
         {
@@ -109,6 +124,57 @@ where
             options.whole_file = true;
         } else if options_enabled && argument == OsStr::new("-v") {
             options.verbose = options.verbose.saturating_add(1);
+        } else if options_enabled
+            && (argument == OsStr::new("-t") || argument == OsStr::new("--times"))
+        {
+            options.preserve_times = true;
+        } else if options_enabled
+            && (argument == OsStr::new("-p") || argument == OsStr::new("--perms"))
+        {
+            options.preserve_permissions = true;
+        } else if options_enabled && argument == OsStr::new("--include") {
+            options.filters.push(FilterDirective::Rule(FilterRule {
+                include: true,
+                pattern: next_utf8(&mut arguments, "--include")?,
+            }));
+        } else if options_enabled && argument == OsStr::new("--exclude") {
+            options.filters.push(FilterDirective::Rule(FilterRule {
+                include: false,
+                pattern: next_utf8(&mut arguments, "--exclude")?,
+            }));
+        } else if options_enabled && argument == OsStr::new("--filter") {
+            let rule = next_utf8(&mut arguments, "--filter")?;
+            options.filters.push(parse_filter_directive(rule)?);
+        } else if options_enabled && argument == OsStr::new("--include-from") {
+            options.filters.push(FilterDirective::File(FilterFile {
+                kind: FilterFileKind::Include,
+                path: PathBuf::from(next_value(&mut arguments, "--include-from")?),
+            }));
+        } else if options_enabled && argument == OsStr::new("--exclude-from") {
+            options.filters.push(FilterDirective::File(FilterFile {
+                kind: FilterFileKind::Exclude,
+                path: PathBuf::from(next_value(&mut arguments, "--exclude-from")?),
+            }));
+        } else if options_enabled && long_value(&argument, "--include=").is_some() {
+            options.filters.push(FilterDirective::Rule(FilterRule {
+                include: true,
+                pattern: long_value(&argument, "--include=")
+                    .expect("checked")
+                    .to_owned(),
+            }));
+        } else if options_enabled && long_value(&argument, "--exclude=").is_some() {
+            options.filters.push(FilterDirective::Rule(FilterRule {
+                include: false,
+                pattern: long_value(&argument, "--exclude=")
+                    .expect("checked")
+                    .to_owned(),
+            }));
+        } else if options_enabled && long_value(&argument, "--filter=").is_some() {
+            options.filters.push(parse_filter_directive(
+                long_value(&argument, "--filter=")
+                    .expect("checked")
+                    .to_owned(),
+            )?);
         } else if options_enabled
             && (argument == OsStr::new("-e") || argument == OsStr::new("--rsh"))
         {
@@ -150,16 +216,71 @@ fn parse_short_cluster(argument: &OsStr, options: &mut Options) -> Result<(), Pa
             'a' => {
                 options.archive = true;
                 options.recursive = true;
+                options.preserve_times = true;
+                options.preserve_permissions = true;
             }
             'r' => options.recursive = true,
             'n' => options.dry_run = true,
             'c' => options.checksum = true,
             'W' => options.whole_file = true,
             'v' => options.verbose = options.verbose.saturating_add(1),
+            't' => options.preserve_times = true,
+            'p' => options.preserve_permissions = true,
             _ => return Err(ParseError::UnknownOption(argument.to_os_string())),
         }
     }
     Ok(())
+}
+
+fn next_value<I>(arguments: &mut I, option: &'static str) -> Result<OsString, ParseError>
+where
+    I: Iterator<Item = OsString>,
+{
+    arguments
+        .next()
+        .ok_or(ParseError::MissingOptionValue(option))
+}
+
+fn next_utf8<I>(arguments: &mut I, option: &'static str) -> Result<String, ParseError>
+where
+    I: Iterator<Item = OsString>,
+{
+    next_value(arguments, option)?
+        .into_string()
+        .map_err(|_| ParseError::NonUtf8OptionValue(option))
+}
+
+fn long_value<'a>(argument: &'a OsStr, prefix: &str) -> Option<&'a str> {
+    argument.to_str()?.strip_prefix(prefix)
+}
+
+fn parse_filter_directive(rule: String) -> Result<FilterDirective, ParseError> {
+    let trimmed = rule.trim_start();
+    let (include, pattern) = if let Some(pattern) = trimmed.strip_prefix("+ ") {
+        (true, pattern)
+    } else if let Some(pattern) = trimmed.strip_prefix("- ") {
+        (false, pattern)
+    } else if let Some(path) = trimmed
+        .strip_prefix(". ")
+        .or_else(|| trimmed.strip_prefix("merge "))
+    {
+        if path.is_empty() {
+            return Err(ParseError::InvalidFilter(rule));
+        }
+        return Ok(FilterDirective::File(FilterFile {
+            kind: FilterFileKind::Merge,
+            path: PathBuf::from(path),
+        }));
+    } else {
+        return Err(ParseError::InvalidFilter(rule));
+    };
+    if pattern.is_empty() {
+        return Err(ParseError::InvalidFilter(rule));
+    }
+    Ok(FilterDirective::Rule(FilterRule {
+        include,
+        pattern: pattern.to_owned(),
+    }))
 }
 
 fn parse_endpoint(value: OsString) -> Result<Endpoint, ParseError> {

@@ -59,6 +59,12 @@ def compare_contents(candidate: str, wsl: str, root: Path, source: Path) -> dict
     run([candidate, "-a", with_trailing_separator(source), with_trailing_separator(candidate_destination)])
     run([wsl, "rsync", "-a", wsl_trailing(source, wsl), wsl_trailing(oracle_destination, wsl)])
     assert_same(oracle_destination, candidate_destination, "Windows/WSL contents differential")
+    candidate_mtime = (candidate_destination / "hello.txt").stat().st_mtime_ns
+    oracle_mtime = (oracle_destination / "hello.txt").stat().st_mtime_ns
+    if candidate_mtime != oracle_mtime:
+        raise RuntimeError(
+            f"Windows/WSL file timestamp mismatch: candidate={candidate_mtime}, oracle={oracle_mtime}"
+        )
 
     (candidate_destination / "delete-me").write_bytes(b"old")
     (oracle_destination / "delete-me").write_bytes(b"old")
@@ -95,7 +101,133 @@ def compare_contents(candidate: str, wsl: str, root: Path, source: Path) -> dict
     after = sorted(path.relative_to(candidate_destination) for path in candidate_destination.rglob("*"))
     if before != after:
         raise RuntimeError("candidate dry-run changed destination entries")
-    return {"archive_contents": "pass", "delete": "pass", "dry_run": "pass"}
+    return {
+        "archive_contents": "pass",
+        "file_timestamp": "pass",
+        "delete": "pass",
+        "dry_run": "pass",
+    }
+
+
+def compare_filters(candidate: str, wsl: str, root: Path, source: Path) -> dict[str, str]:
+    (source / "drop.tmp").write_bytes(b"excluded")
+    candidate_destination = root / "candidate-filter"
+    oracle_destination = root / "oracle-filter"
+    candidate_destination.mkdir()
+    oracle_destination.mkdir()
+    for destination in (candidate_destination, oracle_destination):
+        (destination / "protected.tmp").write_bytes(b"protected")
+        (destination / "stale.txt").write_bytes(b"stale")
+    candidate_arguments = [
+        candidate,
+        "-a",
+        "--delete",
+        "--exclude=*.tmp",
+        with_trailing_separator(source),
+        with_trailing_separator(candidate_destination),
+    ]
+    oracle_arguments = [
+        wsl,
+        "rsync",
+        "-a",
+        "--delete",
+        "--exclude=*.tmp",
+        wsl_trailing(source, wsl),
+        wsl_trailing(oracle_destination, wsl),
+    ]
+    run(candidate_arguments)
+    run(oracle_arguments)
+    assert_same(oracle_destination, candidate_destination, "Windows/WSL filter differential")
+
+    run(
+        [
+            candidate,
+            "-a",
+            "--delete-excluded",
+            "--exclude=*.tmp",
+            with_trailing_separator(source),
+            with_trailing_separator(candidate_destination),
+        ]
+    )
+    run(
+        [
+            wsl,
+            "rsync",
+            "-a",
+            "--delete-excluded",
+            "--exclude=*.tmp",
+            wsl_trailing(source, wsl),
+            wsl_trailing(oracle_destination, wsl),
+        ]
+    )
+    assert_same(
+        oracle_destination,
+        candidate_destination,
+        "Windows/WSL delete-excluded differential",
+    )
+
+    candidate_ordered = root / "candidate-filter-order"
+    oracle_ordered = root / "oracle-filter-order"
+    candidate_ordered.mkdir()
+    oracle_ordered.mkdir()
+    run(
+        [
+            candidate,
+            "-a",
+            "--include=hello.txt",
+            "--exclude=*",
+            with_trailing_separator(source),
+            with_trailing_separator(candidate_ordered),
+        ]
+    )
+    run(
+        [
+            wsl,
+            "rsync",
+            "-a",
+            "--include=hello.txt",
+            "--exclude=*",
+            wsl_trailing(source, wsl),
+            wsl_trailing(oracle_ordered, wsl),
+        ]
+    )
+    assert_same(oracle_ordered, candidate_ordered, "Windows/WSL ordered-filter differential")
+
+    rules = root / "filters.rules"
+    rules.write_text("+ hello.txt\n- *\n", encoding="utf-8")
+    candidate_merge = root / "candidate-filter-merge"
+    oracle_merge = root / "oracle-filter-merge"
+    candidate_merge.mkdir()
+    oracle_merge.mkdir()
+    run(
+        [
+            candidate,
+            "-a",
+            "--filter",
+            f". {rules}",
+            with_trailing_separator(source),
+            with_trailing_separator(candidate_merge),
+        ]
+    )
+    run(
+        [
+            wsl,
+            "rsync",
+            "-a",
+            "--filter",
+            f". {wsl_path(rules, wsl)}",
+            wsl_trailing(source, wsl),
+            wsl_trailing(oracle_merge, wsl),
+        ]
+    )
+    assert_same(oracle_merge, candidate_merge, "Windows/WSL merge-filter differential")
+    return {
+        "exclude": "pass",
+        "delete_protection": "pass",
+        "delete_excluded": "pass",
+        "ordered_rules": "pass",
+        "merge_file": "pass",
+    }
 
 
 def compare_directory_shape(candidate: str, wsl: str, root: Path, source: Path) -> dict[str, str]:
@@ -153,6 +285,7 @@ def differential(candidate: str, wsl: str) -> dict[str, object]:
             "candidate": str(Path(candidate_path).resolve()),
             "oracle": "WSL rsync",
             "contents": compare_contents(candidate_path, wsl, root, source),
+            "filters": compare_filters(candidate_path, wsl, root, source),
             "directory_shape": compare_directory_shape(candidate_path, wsl, root, source),
             "multiple_sources": compare_multiple_sources(candidate_path, wsl, root),
         }

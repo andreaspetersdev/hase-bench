@@ -37,5 +37,7 @@ privileges.
 separate trees in one Windows temporary directory. It independently compares
 archive contents, deletion, dry-run immutability, source trailing-slash and
 destination-shape rules, multiple sources, binary bytes, and names containing
-spaces. Drive paths are translated deterministically to `/mnt/<drive>/...`;
+spaces. It also compares ordered include/exclude rules, a merge filter file,
+excluded-path protection and `--delete-excluded`, and regular-file timestamp
+precision. Drive paths are translated deterministically to `/mnt/<drive>/...`;
 no shell command is constructed from fixture paths.
