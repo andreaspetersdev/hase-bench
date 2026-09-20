@@ -40,6 +40,9 @@ destination-shape rules, multiple sources, binary bytes, and names containing
 spaces. It also compares ordered include/exclude rules, a merge filter file,
 excluded-path protection and `--delete-excluded`, and regular-file timestamp
 precision. Per-directory merge inheritance and hard-link identity groups are
-also compared when the shared filesystem advertises support. Drive paths are
-translated deterministically to `/mnt/<drive>/...`;
-no shell command is constructed from fixture paths.
+also compared when the shared filesystem advertises support. The symlink
+branch compares link preservation, referent copying, and unsafe-link rejection
+when native Windows link creation is available. Otherwise it records the
+explicit unsupported capability; a WSL-created DrvFS representation is not
+counted as a native Windows symlink. Drive paths are translated deterministically
+to `/mnt/<drive>/...`; no shell command is constructed from fixture paths.

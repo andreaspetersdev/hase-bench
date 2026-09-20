@@ -321,3 +321,80 @@ fn archive_preserves_windows_read_only_mapping() {
     make_writable(&destination.join("readonly"));
     clean(&root);
 }
+
+#[test]
+fn link_options_select_object_referent_and_safe_policy_when_supported() {
+    let root = temporary_root();
+    let source = root.join("source");
+    let outside = root.join("outside.txt");
+    fs::create_dir_all(&source).unwrap();
+    fs::write(source.join("inside.txt"), b"inside").unwrap();
+    fs::write(&outside, b"outside").unwrap();
+    if !create_file_symlink("inside.txt", &source.join("safe-link")) {
+        clean(&root);
+        return;
+    }
+    assert!(create_file_symlink(
+        "../outside.txt",
+        &source.join("unsafe-link")
+    ));
+
+    let preserved = root.join("preserved");
+    rust_rsync_reference::run(
+        parse_invocation([
+            "-a".into(),
+            "--safe-links".into(),
+            format!("{}/", source.display()),
+            format!("{}/", preserved.display()),
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        fs::symlink_metadata(preserved.join("safe-link"))
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert!(!preserved.join("unsafe-link").exists());
+
+    let followed = root.join("followed");
+    rust_rsync_reference::run(
+        parse_invocation([
+            "-aL".into(),
+            format!("{}/", source.display()),
+            format!("{}/", followed.display()),
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(fs::read(followed.join("safe-link")).unwrap(), b"inside");
+    assert_eq!(fs::read(followed.join("unsafe-link")).unwrap(), b"outside");
+    assert!(
+        !fs::symlink_metadata(followed.join("safe-link"))
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    clean(&root);
+}
+
+#[test]
+fn link_policy_options_are_parsed_without_host_capability() {
+    let invocation = parse_invocation(["-aHL", "--safe-links", "source/", "destination/"])
+        .expect("link policy options should parse");
+    assert!(invocation.options.preserve_symlinks);
+    assert!(invocation.options.preserve_hard_links);
+    assert!(invocation.options.copy_link_referents);
+    assert!(invocation.options.safe_links);
+}
+
+#[cfg(unix)]
+fn create_file_symlink(target: &str, link: &Path) -> bool {
+    std::os::unix::fs::symlink(target, link).is_ok()
+}
+
+#[cfg(windows)]
+fn create_file_symlink(target: &str, link: &Path) -> bool {
+    std::os::windows::fs::symlink_file(target, link).is_ok()
+}

@@ -31,10 +31,18 @@ struct CopyContext {
 #[derive(Debug)]
 pub enum ReferenceError {
     UnsupportedMode,
+    UnsupportedCapability {
+        feature: &'static str,
+        path: PathBuf,
+        source: io::Error,
+    },
     InvalidDestination,
     InvalidFilter(String),
     MissingFileName(PathBuf),
-    Io { path: PathBuf, source: io::Error },
+    Io {
+        path: PathBuf,
+        source: io::Error,
+    },
 }
 
 impl ReferenceError {
@@ -44,7 +52,7 @@ impl ReferenceError {
             | Self::InvalidDestination
             | Self::InvalidFilter(_)
             | Self::MissingFileName(_) => 2,
-            Self::Io { .. } => 23,
+            Self::Io { .. } | Self::UnsupportedCapability { .. } => 23,
         }
     }
 }
@@ -55,6 +63,15 @@ impl fmt::Display for ReferenceError {
             Self::UnsupportedMode => {
                 formatter.write_str("reference phase supports local endpoints only")
             }
+            Self::UnsupportedCapability {
+                feature,
+                path,
+                source,
+            } => write!(
+                formatter,
+                "unsupported {feature} capability at {}: {source}",
+                path.display()
+            ),
             Self::InvalidDestination => {
                 formatter.write_str("multiple sources require a directory destination")
             }
@@ -70,7 +87,7 @@ impl fmt::Display for ReferenceError {
 impl std::error::Error for ReferenceError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Io { source, .. } => Some(source),
+            Self::Io { source, .. } | Self::UnsupportedCapability { source, .. } => Some(source),
             _ => None,
         }
     }
@@ -221,8 +238,61 @@ fn copy_entry(
 ) -> Result<(), ReferenceError> {
     let metadata = fs::symlink_metadata(source).map_err(|error| io_error(source, error))?;
     if metadata.file_type().is_symlink() {
-        copy_symlink(source, destination)
+        if options.copy_link_referents {
+            let referent = fs::metadata(source).map_err(|error| io_error(source, error))?;
+            copy_referent(
+                source,
+                destination,
+                relative,
+                referent,
+                options,
+                program,
+                active_rules,
+                context,
+            )
+        } else if options.preserve_symlinks
+            && (!options.safe_links || safe_link_target(source, relative)?)
+        {
+            copy_symlink(source, destination)
+        } else {
+            Ok(())
+        }
     } else if metadata.is_dir() {
+        sync_directory(
+            source,
+            destination,
+            relative,
+            options,
+            program,
+            active_rules,
+            context,
+        )
+    } else {
+        copy_referent(
+            source,
+            destination,
+            relative,
+            metadata,
+            options,
+            program,
+            active_rules,
+            context,
+        )
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn copy_referent(
+    source: &Path,
+    destination: &Path,
+    relative: &Path,
+    metadata: fs::Metadata,
+    options: &Options,
+    program: &FilterProgram,
+    active_rules: &[ActiveRule],
+    context: &mut CopyContext,
+) -> Result<(), ReferenceError> {
+    if metadata.is_dir() {
         sync_directory(
             source,
             destination,
@@ -287,6 +357,31 @@ fn copy_entry(
             source: io::Error::new(io::ErrorKind::Unsupported, "unsupported entry kind"),
         })
     }
+}
+
+fn safe_link_target(source: &Path, relative: &Path) -> Result<bool, ReferenceError> {
+    let target = fs::read_link(source).map_err(|error| io_error(source, error))?;
+    Ok(link_target_is_safe(relative, &target))
+}
+
+fn link_target_is_safe(relative: &Path, target: &Path) -> bool {
+    use std::path::Component;
+
+    if target.is_absolute() {
+        return false;
+    }
+    let mut depth = relative
+        .parent()
+        .map_or(0, |parent| parent.components().count());
+    for component in target.components() {
+        match component {
+            Component::CurDir => {}
+            Component::Normal(_) => depth += 1,
+            Component::ParentDir if depth > 0 => depth -= 1,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => return false,
+        }
+    }
+    true
 }
 
 #[cfg(windows)]
@@ -482,12 +577,52 @@ fn copy_symlink(source: &Path, destination: &Path) -> Result<(), ReferenceError>
     } else {
         symlink_file(target, destination)
     };
-    result.map_err(|error| io_error(destination, error))
+    result.map_err(|error| {
+        if error.kind() == io::ErrorKind::PermissionDenied {
+            ReferenceError::UnsupportedCapability {
+                feature: "symbolic-link creation",
+                path: destination.to_path_buf(),
+                source: error,
+            }
+        } else {
+            io_error(destination, error)
+        }
+    })
 }
 
 fn io_error(path: &Path, source: io::Error) -> ReferenceError {
     ReferenceError::Io {
         path: path.to_path_buf(),
         source,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::link_target_is_safe;
+    use std::path::Path;
+
+    #[test]
+    fn safe_link_targets_remain_inside_the_transferred_tree() {
+        assert!(link_target_is_safe(
+            Path::new("nested/link"),
+            Path::new("../inside")
+        ));
+        assert!(link_target_is_safe(
+            Path::new("nested/link"),
+            Path::new("child")
+        ));
+        assert!(!link_target_is_safe(
+            Path::new("nested/link"),
+            Path::new("../../outside")
+        ));
+        assert!(!link_target_is_safe(
+            Path::new("link"),
+            Path::new("../outside")
+        ));
+        assert!(!link_target_is_safe(
+            Path::new("link"),
+            Path::new("/absolute")
+        ));
     }
 }

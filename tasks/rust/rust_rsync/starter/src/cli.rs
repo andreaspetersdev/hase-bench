@@ -38,6 +38,8 @@ pub struct Options {
     pub preserve_permissions: bool,
     pub preserve_hard_links: bool,
     pub preserve_symlinks: bool,
+    pub copy_link_referents: bool,
+    pub safe_links: bool,
     pub filters: Vec<FilterDirective>,
     pub remote_shell: Option<OsString>,
 }
@@ -143,6 +145,12 @@ where
             && (argument == OsStr::new("-l") || argument == OsStr::new("--links"))
         {
             options.preserve_symlinks = true;
+        } else if options_enabled
+            && (argument == OsStr::new("-L") || argument == OsStr::new("--copy-links"))
+        {
+            options.copy_link_referents = true;
+        } else if options_enabled && argument == OsStr::new("--safe-links") {
+            options.safe_links = true;
         } else if options_enabled && argument == OsStr::new("--include") {
             options.filters.push(FilterDirective::Rule(FilterRule {
                 include: true,
@@ -240,6 +248,7 @@ fn parse_short_cluster(argument: &OsStr, options: &mut Options) -> Result<(), Pa
             'p' => options.preserve_permissions = true,
             'H' => options.preserve_hard_links = true,
             'l' => options.preserve_symlinks = true,
+            'L' => options.copy_link_referents = true,
             _ => return Err(ParseError::UnknownOption(argument.to_os_string())),
         }
     }

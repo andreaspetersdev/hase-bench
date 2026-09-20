@@ -307,6 +307,146 @@ def compare_hard_links(candidate: str, wsl: str, root: Path) -> str:
     return "pass"
 
 
+def compare_symlinks(candidate: str, wsl: str, root: Path) -> dict[str, str]:
+    source = root / "symlink-source"
+    source.mkdir()
+    (source / "inside.txt").write_bytes(b"inside")
+    outside = root / "outside.txt"
+    outside.write_bytes(b"outside")
+    native_creation = True
+    try:
+        (source / "safe-link").symlink_to("inside.txt")
+        (source / "unsafe-link").symlink_to("../outside.txt")
+    except OSError as error:
+        native_creation = False
+        creation_error = f"{type(error).__name__}: {error}"
+        for link in (source / "safe-link", source / "unsafe-link"):
+            link.unlink(missing_ok=True)
+        run([wsl, "ln", "-s", "inside.txt", wsl_path(source / "safe-link", wsl)])
+        run([wsl, "ln", "-s", "../outside.txt", wsl_path(source / "unsafe-link", wsl)])
+        if not (source / "safe-link").is_symlink():
+            return {"status": "unsupported", "reason": creation_error}
+
+    links_result = "pass"
+    if native_creation:
+        candidate_preserved = root / "candidate-symlinks"
+        oracle_preserved = root / "oracle-symlinks"
+        candidate_preserved.mkdir()
+        oracle_preserved.mkdir()
+        run(
+            [
+                candidate,
+                "-a",
+                with_trailing_separator(source),
+                with_trailing_separator(candidate_preserved),
+            ]
+        )
+        run(
+            [
+                wsl,
+                "rsync",
+                "-a",
+                wsl_trailing(source, wsl),
+                wsl_trailing(oracle_preserved, wsl),
+            ]
+        )
+        assert_same(oracle_preserved, candidate_preserved, "Windows/WSL symlink differential")
+    else:
+        candidate_preserved = root / "candidate-symlink-capability"
+        candidate_preserved.mkdir()
+        result = subprocess.run(
+            [
+                candidate,
+                "-a",
+                with_trailing_separator(source),
+                with_trailing_separator(candidate_preserved),
+            ],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=30.0,
+        )
+        if result.returncode != 23 or "unsupported symbolic-link creation capability" not in result.stdout:
+            raise RuntimeError(
+                "candidate did not report unavailable symbolic-link creation "
+                f"with exit 23: exit={result.returncode}, output={result.stdout!r}"
+            )
+        links_result = "unsupported-with-diagnostic"
+
+    unsafe_source = root / "unsafe-symlink-source"
+    unsafe_source.mkdir()
+    if native_creation:
+        (unsafe_source / "unsafe-link").symlink_to("../outside.txt")
+    else:
+        run(
+            [
+                wsl,
+                "ln",
+                "-s",
+                "../outside.txt",
+                wsl_path(unsafe_source / "unsafe-link", wsl),
+            ]
+        )
+    candidate_safe = root / "candidate-safe-links"
+    oracle_safe = root / "oracle-safe-links"
+    candidate_safe.mkdir()
+    oracle_safe.mkdir()
+    run(
+        [
+            candidate,
+            "-a",
+            "--safe-links",
+            with_trailing_separator(unsafe_source),
+            with_trailing_separator(candidate_safe),
+        ]
+    )
+    run(
+        [
+            wsl,
+            "rsync",
+            "-a",
+            "--safe-links",
+            wsl_trailing(unsafe_source, wsl),
+            wsl_trailing(oracle_safe, wsl),
+        ]
+    )
+    assert_same(oracle_safe, candidate_safe, "Windows/WSL safe-link differential")
+
+    candidate_followed = root / "candidate-followed-symlinks"
+    oracle_followed = root / "oracle-followed-symlinks"
+    candidate_followed.mkdir()
+    oracle_followed.mkdir()
+    run(
+        [
+            candidate,
+            "-aL",
+            with_trailing_separator(source),
+            with_trailing_separator(candidate_followed),
+        ]
+    )
+    run(
+        [
+            wsl,
+            "rsync",
+            "-aL",
+            wsl_trailing(source, wsl),
+            wsl_trailing(oracle_followed, wsl),
+        ]
+    )
+    assert_same(
+        oracle_followed,
+        candidate_followed,
+        "Windows/WSL followed-symlink differential",
+    )
+    return {
+        "status": "pass" if native_creation else "capability-limited-pass",
+        "links": links_result,
+        "copy_links": "pass",
+        "safe_links": "pass",
+    }
+
+
 def compare_directory_shape(candidate: str, wsl: str, root: Path, source: Path) -> dict[str, str]:
     candidate_absent = root / "candidate-renamed"
     oracle_absent = root / "oracle-renamed"
@@ -364,6 +504,7 @@ def differential(candidate: str, wsl: str) -> dict[str, object]:
             "contents": compare_contents(candidate_path, wsl, root, source),
             "filters": compare_filters(candidate_path, wsl, root, source),
             "hard_links": compare_hard_links(candidate_path, wsl, root),
+            "symlinks": compare_symlinks(candidate_path, wsl, root),
             "directory_shape": compare_directory_shape(candidate_path, wsl, root, source),
             "multiple_sources": compare_multiple_sources(candidate_path, wsl, root),
         }

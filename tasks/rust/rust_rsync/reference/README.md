@@ -8,13 +8,16 @@ Implemented and tested:
 - local endpoints;
 - explicit source trailing-slash intent;
 - recursive regular file/directory copy;
-- symbolic-link copy on supported hosts;
+- symbolic-link object preservation with `-l`/archive mode, referent copying
+  with `-L`, and lexical transferred-tree confinement with `--safe-links`;
 - `--delete` for extraneous destination entries;
 - ordered inline include/exclude rules, merge filter files, and excluded-path
   delete protection including `--delete-excluded`;
 - inherited per-directory merge rules with directory-relative anchoring;
 - hard-link identity groups with `-H` through safe cross-platform handles;
 - Windows read-only mapping under archive/permission preservation;
+- exit-23 unsupported-capability diagnostics when Windows cannot create a
+  requested native symbolic link;
 - mutation-free `--dry-run`;
 - regular-file modification times at the exercised rsync/filesystem precision;
 - rsync-style broad syntax and partial-transfer exit categories.
@@ -23,13 +26,16 @@ The Windows reference is independently differential-tested against WSL rsync
 3.2.7 for trailing-slash contents, non-trailing directory naming with absent
 and existing destinations, recursive binary/name handling, `--delete`,
 `--delete-excluded`, `--dry-run`, ordered and inherited filters, merge files,
-timestamps, hard-link identity, and multiple sources. The first differential run corrected an
-author-test assumption about the absent-destination directory shape.
+timestamps, hard-link identity, and multiple sources. The symlink fixture
+records the current host's missing native creation privilege rather than
+claiming a skipped pass; where native links are available it compares `-l`,
+`-L`, and `--safe-links`. The first differential run corrected an author-test
+assumption about the absent-destination directory shape.
 
 Not yet implemented:
 
 - complete option and filter semantics;
-- timestamps and the full metadata/capability mapping;
+- the remaining metadata/capability mapping;
 - rolling delta and interruption recovery;
 - protocol-31 framing and remote-shell roles;
 - daemon client/server, modules, and authentication;
