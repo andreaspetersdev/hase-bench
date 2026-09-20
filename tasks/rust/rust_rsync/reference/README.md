@@ -32,6 +32,9 @@ Implemented and tested:
 - incremental `Read`-based delta planning with one rolling block window and a
   caller-selected maximum literal buffer; instructions are emitted to a sink
   instead of accumulating the target in the planner;
+- `--partial` and confined relative `--partial-dir` recovery with deterministic
+  interruption, retained-prefix validation/reuse, non-retained cleanup, and
+  destination-isolated retry commit;
 - pre-mutation exit-23 diagnostics for explicit metadata requests that the
   selected platform adapter cannot honor;
 - mutation-free `--dry-run`;
@@ -53,7 +56,7 @@ Not yet implemented:
 - complete option and filter semantics;
 - Unix ownership, ACL, xattr, and sparse adapters plus remaining metadata
   mapping;
-- interruption recovery;
+- delayed-update set commits and remaining recovery semantics;
 - protocol-31 framing and remote-shell roles;
 - daemon client/server, modules, and authentication;
 - every remaining row in `COMPATIBILITY_MATRIX.csv`.

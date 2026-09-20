@@ -19,6 +19,7 @@ use rust_rsync::{Endpoint, Invocation, Options, PathSpec};
 use same_file::Handle;
 
 pub mod delta;
+pub mod recovery;
 
 #[derive(Debug, Clone)]
 struct ActiveRule {

@@ -29,8 +29,8 @@ SAFE-002,3,all,case-folded or platform-alias collisions fail before mutation,def
 DELTA-001,4,all,rolling and strong signatures reconstruct exact bytes,default,delta,visible_delta_rebuild,hidden_random_delta,required,reference
 DELTA-002,4,all,small edits transfer fewer literal bytes than whole file,default,delta,visible_delta_reuse,hidden_adversarial_delta,required,reference
 DELTA-003,4,all,delta memory is bounded by block and pipeline limits,default,delta,visible_delta_bounds,hidden_large_file_memory,required,reference
-RECOVER-001,4,all,partial retains configured interrupted output,--partial,session|fs,visible_partial,hidden_interrupt_partial,required,planned
-RECOVER-002,4,all,partial-dir isolates reusable partial data,--partial-dir,session|fs,visible_partial_dir,diff_partial_dir,required,planned
+RECOVER-001,4,all,partial retains configured interrupted output,--partial,session|fs,visible_partial,hidden_interrupt_partial,required,reference
+RECOVER-002,4,all,partial-dir isolates reusable partial data,--partial-dir,session|fs,visible_partial_dir,diff_partial_dir,required,reference
 RECOVER-003,4,all,delay-updates commits completed files as a final set,--delay-updates,session|fs,visible_delay_updates,hidden_commit_failure,required,planned
 SHELL-001,5,remote-shell,push interoperates clone client to upstream server role,SRC HOST:DEST,transport::shell|wire,visible_shell_push,diff_clone_to_upstream_push,required,planned
 SHELL-002,5,remote-shell,pull interoperates upstream client to clone server role,HOST:SRC DEST,transport::shell|wire,visible_shell_pull,diff_upstream_to_clone_pull,required,planned

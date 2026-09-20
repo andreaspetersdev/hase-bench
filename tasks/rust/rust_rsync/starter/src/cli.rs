@@ -45,6 +45,8 @@ pub struct Options {
     pub copy_link_referents: bool,
     pub safe_links: bool,
     pub sparse: bool,
+    pub partial: bool,
+    pub partial_dir: Option<PathBuf>,
     pub filters: Vec<FilterDirective>,
     pub remote_shell: Option<OsString>,
 }
@@ -176,6 +178,18 @@ where
             && (argument == OsStr::new("-S") || argument == OsStr::new("--sparse"))
         {
             options.sparse = true;
+        } else if options_enabled && argument == OsStr::new("--partial") {
+            options.partial = true;
+        } else if options_enabled && argument == OsStr::new("--partial-dir") {
+            options.partial = true;
+            options.partial_dir = Some(PathBuf::from(next_value(&mut arguments, "--partial-dir")?));
+        } else if options_enabled && long_value(&argument, "--partial-dir=").is_some() {
+            options.partial = true;
+            options.partial_dir = Some(PathBuf::from(
+                long_value(&argument, "--partial-dir=")
+                    .expect("checked")
+                    .to_owned(),
+            ));
         } else if options_enabled && argument == OsStr::new("--include") {
             options.filters.push(FilterDirective::Rule(FilterRule {
                 include: true,
