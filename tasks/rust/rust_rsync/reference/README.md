@@ -18,6 +18,10 @@ Implemented and tested:
 - Windows read-only mapping under archive/permission preservation;
 - exit-23 unsupported-capability diagnostics when Windows cannot create a
   requested native symbolic link;
+- typed metadata capability reporting for timestamps, permissions, ownership,
+  ACLs, xattrs/named streams, symlinks, hard links, and sparse files;
+- pre-mutation exit-23 diagnostics for explicit `-o`/`-g`, `-A`, `-X`, and
+  `-S` requests that the current adapter cannot honor;
 - mutation-free `--dry-run`;
 - regular-file modification times at the exercised rsync/filesystem precision;
 - rsync-style broad syntax and partial-transfer exit categories.

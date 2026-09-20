@@ -2,6 +2,7 @@ use std::fs::{self, FileTimes, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use rust_rsync::fs::{CapabilityStatus, MetadataFeature};
 use rust_rsync::parse_invocation;
 
 fn temporary_root() -> PathBuf {
@@ -397,4 +398,75 @@ fn create_file_symlink(target: &str, link: &Path) -> bool {
 #[cfg(windows)]
 fn create_file_symlink(target: &str, link: &Path) -> bool {
     std::os::windows::fs::symlink_file(target, link).is_ok()
+}
+
+#[test]
+fn metadata_capability_report_distinguishes_host_and_adapter_limits() {
+    let report = rust_rsync_reference::metadata_capabilities();
+    assert_eq!(
+        report.status(MetadataFeature::ModificationTimes),
+        Some(&CapabilityStatus::Supported)
+    );
+    assert_eq!(
+        report.status(MetadataFeature::Permissions),
+        Some(&CapabilityStatus::Supported)
+    );
+    assert_eq!(
+        report.status(MetadataFeature::HardLinks),
+        Some(&CapabilityStatus::Supported)
+    );
+    assert_eq!(
+        report.status(MetadataFeature::Symlinks),
+        Some(&CapabilityStatus::ProbeRequired)
+    );
+    assert!(matches!(
+        report.status(MetadataFeature::Acls),
+        Some(CapabilityStatus::AdapterUnavailable { .. })
+    ));
+    assert!(matches!(
+        report.status(MetadataFeature::ExtendedAttributes),
+        Some(CapabilityStatus::AdapterUnavailable { .. })
+    ));
+    assert!(matches!(
+        report.status(MetadataFeature::SparseFiles),
+        Some(CapabilityStatus::AdapterUnavailable { .. })
+    ));
+    #[cfg(windows)]
+    assert!(matches!(
+        report.status(MetadataFeature::Ownership),
+        Some(CapabilityStatus::HostUnsupported { .. })
+    ));
+}
+
+#[test]
+fn unavailable_metadata_requests_fail_before_destination_mutation() {
+    let root = temporary_root();
+    let source = root.join("source");
+    fs::create_dir_all(&source).unwrap();
+    fs::write(source.join("data"), b"payload").unwrap();
+    for (index, (flag, diagnostic)) in [
+        ("-o", "ownership preservation"),
+        ("-g", "ownership preservation"),
+        ("-A", "ACL preservation"),
+        ("-X", "extended-attribute preservation"),
+        ("-S", "sparse-file preservation"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let destination = root.join(format!("destination-{index}"));
+        let error = rust_rsync_reference::run(
+            parse_invocation([
+                flag.into(),
+                format!("{}/", source.display()),
+                format!("{}/", destination.display()),
+            ])
+            .unwrap(),
+        )
+        .unwrap_err();
+        assert_eq!(error.exit_code(), 23);
+        assert!(error.to_string().contains(diagnostic));
+        assert!(!destination.exists());
+    }
+    clean(&root);
 }

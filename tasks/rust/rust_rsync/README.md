@@ -25,6 +25,11 @@ Phase 0 artifacts:
 - `starter/` is the compiling unpublished Rust module skeleton.
 - `reference/` is the in-progress author reference; its README lists gaps.
 
+The starter filesystem boundary uses typed capability outcomes. Host support
+and adapter implementation are separate states: detecting NTFS sparse or ACL
+support does not permit an adapter to claim preservation until it implements
+and validates the operation.
+
 Run the current Linux/WSL fixture from the repository root:
 
 ```text

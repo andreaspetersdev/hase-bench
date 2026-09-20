@@ -36,10 +36,15 @@ pub struct Options {
     pub verbose: u8,
     pub preserve_times: bool,
     pub preserve_permissions: bool,
+    pub preserve_owner: bool,
+    pub preserve_group: bool,
+    pub preserve_acls: bool,
+    pub preserve_xattrs: bool,
     pub preserve_hard_links: bool,
     pub preserve_symlinks: bool,
     pub copy_link_referents: bool,
     pub safe_links: bool,
+    pub sparse: bool,
     pub filters: Vec<FilterDirective>,
     pub remote_shell: Option<OsString>,
 }
@@ -138,6 +143,22 @@ where
         {
             options.preserve_permissions = true;
         } else if options_enabled
+            && (argument == OsStr::new("-o") || argument == OsStr::new("--owner"))
+        {
+            options.preserve_owner = true;
+        } else if options_enabled
+            && (argument == OsStr::new("-g") || argument == OsStr::new("--group"))
+        {
+            options.preserve_group = true;
+        } else if options_enabled
+            && (argument == OsStr::new("-A") || argument == OsStr::new("--acls"))
+        {
+            options.preserve_acls = true;
+        } else if options_enabled
+            && (argument == OsStr::new("-X") || argument == OsStr::new("--xattrs"))
+        {
+            options.preserve_xattrs = true;
+        } else if options_enabled
             && (argument == OsStr::new("-H") || argument == OsStr::new("--hard-links"))
         {
             options.preserve_hard_links = true;
@@ -151,6 +172,10 @@ where
             options.copy_link_referents = true;
         } else if options_enabled && argument == OsStr::new("--safe-links") {
             options.safe_links = true;
+        } else if options_enabled
+            && (argument == OsStr::new("-S") || argument == OsStr::new("--sparse"))
+        {
+            options.sparse = true;
         } else if options_enabled && argument == OsStr::new("--include") {
             options.filters.push(FilterDirective::Rule(FilterRule {
                 include: true,
@@ -246,9 +271,14 @@ fn parse_short_cluster(argument: &OsStr, options: &mut Options) -> Result<(), Pa
             'v' => options.verbose = options.verbose.saturating_add(1),
             't' => options.preserve_times = true,
             'p' => options.preserve_permissions = true,
+            'o' => options.preserve_owner = true,
+            'g' => options.preserve_group = true,
+            'A' => options.preserve_acls = true,
+            'X' => options.preserve_xattrs = true,
             'H' => options.preserve_hard_links = true,
             'l' => options.preserve_symlinks = true,
             'L' => options.copy_link_referents = true,
+            'S' => options.sparse = true,
             _ => return Err(ParseError::UnknownOption(argument.to_os_string())),
         }
     }

@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, UNIX_EPOCH};
 
 use rust_rsync::config::{FilterDirective, FilterFileKind, FilterRule};
+use rust_rsync::fs::{CapabilityOutcome, CapabilityReport, CapabilityStatus, MetadataFeature};
 use rust_rsync::{Endpoint, Invocation, Options, PathSpec};
 use same_file::Handle;
 
@@ -36,6 +37,10 @@ pub enum ReferenceError {
         path: PathBuf,
         source: io::Error,
     },
+    UnavailableCapability {
+        feature: MetadataFeature,
+        reason: String,
+    },
     InvalidDestination,
     InvalidFilter(String),
     MissingFileName(PathBuf),
@@ -52,7 +57,9 @@ impl ReferenceError {
             | Self::InvalidDestination
             | Self::InvalidFilter(_)
             | Self::MissingFileName(_) => 2,
-            Self::Io { .. } | Self::UnsupportedCapability { .. } => 23,
+            Self::Io { .. }
+            | Self::UnsupportedCapability { .. }
+            | Self::UnavailableCapability { .. } => 23,
         }
     }
 }
@@ -72,6 +79,13 @@ impl fmt::Display for ReferenceError {
                 "unsupported {feature} capability at {}: {source}",
                 path.display()
             ),
+            Self::UnavailableCapability { feature, reason } => {
+                write!(
+                    formatter,
+                    "unsupported {} capability: {reason}",
+                    feature_name(*feature)
+                )
+            }
             Self::InvalidDestination => {
                 formatter.write_str("multiple sources require a directory destination")
             }
@@ -109,6 +123,7 @@ pub fn run(invocation: Invocation) -> Result<(), ReferenceError> {
             _ => Err(ReferenceError::UnsupportedMode),
         })
         .collect::<Result<Vec<_>, _>>()?;
+    validate_requested_capabilities(&options)?;
     let filters = expand_filters(&options)?;
     let mut context = CopyContext::default();
     if options.dry_run {
@@ -121,6 +136,112 @@ pub fn run(invocation: Invocation) -> Result<(), ReferenceError> {
         transfer_source(source, &destination.path, &options, &filters, &mut context)?;
     }
     Ok(())
+}
+
+pub fn metadata_capabilities() -> CapabilityReport {
+    let ownership = if cfg!(windows) {
+        CapabilityStatus::HostUnsupported {
+            reason: "no implicit Windows SID to Unix uid/gid mapping".to_owned(),
+        }
+    } else {
+        CapabilityStatus::AdapterUnavailable {
+            reason: "owner/group preservation is not implemented in the Phase 0 reference"
+                .to_owned(),
+        }
+    };
+    CapabilityReport {
+        outcomes: vec![
+            supported(MetadataFeature::ModificationTimes),
+            supported(MetadataFeature::Permissions),
+            CapabilityOutcome {
+                feature: MetadataFeature::Ownership,
+                status: ownership,
+            },
+            adapter_unavailable(
+                MetadataFeature::Acls,
+                "ACL preservation is not implemented in the Phase 0 reference",
+            ),
+            adapter_unavailable(
+                MetadataFeature::ExtendedAttributes,
+                "xattr/named-stream preservation is not implemented in the Phase 0 reference",
+            ),
+            CapabilityOutcome {
+                feature: MetadataFeature::Symlinks,
+                status: CapabilityStatus::ProbeRequired,
+            },
+            supported(MetadataFeature::HardLinks),
+            adapter_unavailable(
+                MetadataFeature::SparseFiles,
+                "sparse allocation is not implemented in the Phase 0 reference",
+            ),
+        ],
+    }
+}
+
+fn supported(feature: MetadataFeature) -> CapabilityOutcome {
+    CapabilityOutcome {
+        feature,
+        status: CapabilityStatus::Supported,
+    }
+}
+
+fn adapter_unavailable(feature: MetadataFeature, reason: &str) -> CapabilityOutcome {
+    CapabilityOutcome {
+        feature,
+        status: CapabilityStatus::AdapterUnavailable {
+            reason: reason.to_owned(),
+        },
+    }
+}
+
+fn validate_requested_capabilities(options: &Options) -> Result<(), ReferenceError> {
+    let report = metadata_capabilities();
+    let requested = [
+        (
+            options.preserve_owner || options.preserve_group,
+            MetadataFeature::Ownership,
+        ),
+        (options.preserve_acls, MetadataFeature::Acls),
+        (options.preserve_xattrs, MetadataFeature::ExtendedAttributes),
+        (options.sparse, MetadataFeature::SparseFiles),
+    ];
+    for (is_requested, feature) in requested {
+        if !is_requested {
+            continue;
+        }
+        match report.status(feature) {
+            Some(CapabilityStatus::Supported | CapabilityStatus::ProbeRequired) => {}
+            Some(
+                CapabilityStatus::HostUnsupported { reason }
+                | CapabilityStatus::AdapterUnavailable { reason },
+            ) => {
+                return Err(ReferenceError::UnavailableCapability {
+                    feature,
+                    reason: reason.clone(),
+                });
+            }
+            None => {
+                return Err(ReferenceError::UnavailableCapability {
+                    feature,
+                    reason: "adapter did not report this capability".to_owned(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn feature_name(feature: MetadataFeature) -> &'static str {
+    match feature {
+        MetadataFeature::ModificationTimes => "modification-time preservation",
+        MetadataFeature::Permissions => "permission preservation",
+        MetadataFeature::Ownership => "ownership preservation",
+        MetadataFeature::Acls => "ACL preservation",
+        MetadataFeature::ExtendedAttributes => "extended-attribute preservation",
+        MetadataFeature::Symlinks => "symbolic-link preservation",
+        MetadataFeature::HardLinks => "hard-link preservation",
+        MetadataFeature::SparseFiles => "sparse-file preservation",
+    }
 }
 
 fn transfer_source(
