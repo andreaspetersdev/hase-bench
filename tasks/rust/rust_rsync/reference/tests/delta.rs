@@ -1,6 +1,6 @@
 use rust_rsync::delta::Instruction;
 use rust_rsync_reference::delta::{
-    DeltaError, create_plan, literal_bytes, reconstruct, signatures,
+    DeltaError, create_plan, literal_bytes, reconstruct, signatures, stream_plan,
 };
 
 #[test]
@@ -68,5 +68,66 @@ fn signature_configuration_rejects_zero_block_size() {
     assert_eq!(
         create_plan(b"basis", b"target", 0),
         Err(DeltaError::InvalidBlockSize)
+    );
+}
+
+#[test]
+fn streaming_planner_bounds_window_and_literal_buffers() {
+    let basis = (0_u32..16_384)
+        .flat_map(u32::to_le_bytes)
+        .collect::<Vec<_>>();
+    let mut target = basis.clone();
+    target.splice(4096..4096, b"streamed insertion".iter().copied());
+    target[32_000..32_009].copy_from_slice(b"mutation!");
+    let block_size = 256;
+    let literal_limit = 37;
+    let basis_signatures = signatures(&basis, block_size).unwrap();
+    let mut instructions = Vec::new();
+    let summary = stream_plan(
+        &basis_signatures,
+        target.as_slice(),
+        block_size,
+        literal_limit,
+        |instruction| {
+            if let Instruction::Literal(bytes) = &instruction {
+                assert!(bytes.len() <= literal_limit);
+            }
+            instructions.push(instruction);
+            Ok(())
+        },
+    )
+    .unwrap();
+    assert!(summary.peak_window_bytes <= block_size);
+    assert!(summary.peak_literal_bytes <= literal_limit);
+    assert_eq!(summary.target_size, target.len() as u64);
+    assert_eq!(
+        summary.literal_bytes,
+        instructions
+            .iter()
+            .filter_map(|instruction| match instruction {
+                Instruction::Literal(bytes) => Some(bytes.len() as u64),
+                Instruction::Match { .. } => None,
+            })
+            .sum()
+    );
+    let plan = rust_rsync::delta::DeltaPlan {
+        block_size: block_size as u32,
+        target_size: summary.target_size,
+        target_digest: summary.target_digest,
+        instructions,
+    };
+    assert_eq!(
+        reconstruct(&basis, &plan, target.len() as u64).unwrap(),
+        target
+    );
+}
+
+#[test]
+fn streaming_planner_rejects_zero_literal_limit() {
+    let basis = b"basis";
+    let basis_signatures = signatures(basis, 2).unwrap();
+    assert_eq!(
+        stream_plan(&basis_signatures, &b"target"[..], 2, 0, |_| Ok(())),
+        Err(DeltaError::InvalidLiteralLimit)
     );
 }

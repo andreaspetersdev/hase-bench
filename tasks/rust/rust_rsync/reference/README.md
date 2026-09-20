@@ -29,6 +29,9 @@ Implemented and tested:
   literal/match planning, and length/digest-verified reconstruction;
 - localized-edit block reuse with literal-byte accounting, output bounds, and
   malformed-plan rejection;
+- incremental `Read`-based delta planning with one rolling block window and a
+  caller-selected maximum literal buffer; instructions are emitted to a sink
+  instead of accumulating the target in the planner;
 - pre-mutation exit-23 diagnostics for explicit metadata requests that the
   selected platform adapter cannot honor;
 - mutation-free `--dry-run`;
@@ -50,10 +53,15 @@ Not yet implemented:
 - complete option and filter semantics;
 - Unix ownership, ACL, xattr, and sparse adapters plus remaining metadata
   mapping;
-- streaming delta memory bounds and interruption recovery;
+- interruption recovery;
 - protocol-31 framing and remote-shell roles;
 - daemon client/server, modules, and authentication;
 - every remaining row in `COMPATIBILITY_MATRIX.csv`.
 
 Passing these local unit tests is checkpoint evidence only. It is not Phase 0
 completion and is not a benchmark success.
+
+The streaming planner's working-memory bound excludes the caller-owned basis
+signature table and whatever storage its instruction sink chooses. Its own
+target-dependent buffers never exceed one block plus the configured literal
+pipeline limit.

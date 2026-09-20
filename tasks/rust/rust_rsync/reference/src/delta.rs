@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt;
+use std::io::{self, Read};
 
 use rust_rsync::delta::{BlockSignature, DeltaPlan, Instruction};
 use sha2::{Digest, Sha256};
@@ -12,8 +13,16 @@ pub enum DeltaError {
     BasisTooLarge,
     InvalidBlockIndex(u64),
     OutputLimitExceeded,
-    OutputSizeMismatch { expected: u64, actual: u64 },
+    OutputSizeMismatch {
+        expected: u64,
+        actual: u64,
+    },
     OutputDigestMismatch,
+    InvalidLiteralLimit,
+    Io {
+        kind: io::ErrorKind,
+        message: String,
+    },
 }
 
 impl fmt::Display for DeltaError {
@@ -34,11 +43,24 @@ impl fmt::Display for DeltaError {
                 )
             }
             Self::OutputDigestMismatch => formatter.write_str("output digest mismatch"),
+            Self::InvalidLiteralLimit => {
+                formatter.write_str("literal buffer limit must be nonzero")
+            }
+            Self::Io { kind, message } => write!(formatter, "delta input {kind:?}: {message}"),
         }
     }
 }
 
 impl std::error::Error for DeltaError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamSummary {
+    pub target_size: u64,
+    pub target_digest: Vec<u8>,
+    pub literal_bytes: u64,
+    pub peak_window_bytes: usize,
+    pub peak_literal_bytes: usize,
+}
 
 pub fn signatures(basis: &[u8], block_size: usize) -> Result<Vec<BlockSignature>, DeltaError> {
     let block_size = valid_block_size(block_size)?;
@@ -120,6 +142,112 @@ pub fn create_plan(
         target_size: u64::try_from(target.len()).expect("usize fits in u64 on supported hosts"),
         target_digest: strong_digest(target),
         instructions,
+    })
+}
+
+pub fn stream_plan<R, F>(
+    signatures: &[BlockSignature],
+    mut target: R,
+    block_size: usize,
+    literal_limit: usize,
+    mut emit: F,
+) -> Result<StreamSummary, DeltaError>
+where
+    R: Read,
+    F: FnMut(Instruction) -> Result<(), DeltaError>,
+{
+    let block_size = valid_block_size(block_size)? as usize;
+    if literal_limit == 0 {
+        return Err(DeltaError::InvalidLiteralLimit);
+    }
+    let mut by_weak = HashMap::<u32, Vec<&BlockSignature>>::new();
+    for signature in signatures {
+        by_weak.entry(signature.weak).or_default().push(signature);
+    }
+
+    let mut hasher = Sha256::new();
+    let mut target_size = 0_u64;
+    let mut literal_bytes = 0_u64;
+    let mut peak_window_bytes = 0_usize;
+    let mut peak_literal_bytes = 0_usize;
+    let mut literal = Vec::with_capacity(literal_limit);
+    let mut window = VecDeque::with_capacity(block_size);
+    fill_window(
+        &mut target,
+        &mut window,
+        block_size,
+        &mut hasher,
+        &mut target_size,
+    )?;
+    peak_window_bytes = peak_window_bytes.max(window.len());
+    let mut rolling =
+        (window.len() == block_size).then(|| RollingChecksum::from_block(window.make_contiguous()));
+
+    while window.len() == block_size {
+        let weak = rolling.expect("full window has a rolling checksum").value();
+        if let Some(block_index) = matching_block(window.make_contiguous(), weak, &by_weak) {
+            flush_stream_literal(&mut literal, &mut emit)?;
+            emit(Instruction::Match { block_index })?;
+            window.clear();
+            fill_window(
+                &mut target,
+                &mut window,
+                block_size,
+                &mut hasher,
+                &mut target_size,
+            )?;
+            peak_window_bytes = peak_window_bytes.max(window.len());
+            rolling = (window.len() == block_size)
+                .then(|| RollingChecksum::from_block(window.make_contiguous()));
+            continue;
+        }
+
+        let byte = window.pop_front().expect("full rolling window");
+        push_stream_literal(
+            byte,
+            literal_limit,
+            &mut literal,
+            &mut literal_bytes,
+            &mut peak_literal_bytes,
+            &mut emit,
+        )?;
+        if let Some(next) = read_byte(&mut target, &mut hasher, &mut target_size)? {
+            window.push_back(next);
+            rolling
+                .as_mut()
+                .expect("full window has a rolling checksum")
+                .roll(byte, next);
+        } else {
+            break;
+        }
+    }
+
+    if !window.is_empty() {
+        let weak = weak_checksum(window.make_contiguous());
+        if let Some(block_index) = matching_block(window.make_contiguous(), weak, &by_weak) {
+            flush_stream_literal(&mut literal, &mut emit)?;
+            emit(Instruction::Match { block_index })?;
+        } else {
+            while let Some(byte) = window.pop_front() {
+                push_stream_literal(
+                    byte,
+                    literal_limit,
+                    &mut literal,
+                    &mut literal_bytes,
+                    &mut peak_literal_bytes,
+                    &mut emit,
+                )?;
+            }
+        }
+    }
+    flush_stream_literal(&mut literal, &mut emit)?;
+
+    Ok(StreamSummary {
+        target_size,
+        target_digest: hasher.finalize().to_vec(),
+        literal_bytes,
+        peak_window_bytes,
+        peak_literal_bytes,
     })
 }
 
@@ -210,6 +338,81 @@ fn flush_literal(instructions: &mut Vec<Instruction>, literal: &mut Vec<u8>) {
     if !literal.is_empty() {
         instructions.push(Instruction::Literal(std::mem::take(literal)));
     }
+}
+
+fn fill_window<R: Read>(
+    reader: &mut R,
+    window: &mut VecDeque<u8>,
+    block_size: usize,
+    hasher: &mut Sha256,
+    target_size: &mut u64,
+) -> Result<(), DeltaError> {
+    while window.len() < block_size {
+        let Some(byte) = read_byte(reader, hasher, target_size)? else {
+            break;
+        };
+        window.push_back(byte);
+    }
+    Ok(())
+}
+
+fn read_byte<R: Read>(
+    reader: &mut R,
+    hasher: &mut Sha256,
+    target_size: &mut u64,
+) -> Result<Option<u8>, DeltaError> {
+    let mut byte = [0_u8; 1];
+    loop {
+        match reader.read(&mut byte) {
+            Ok(0) => return Ok(None),
+            Ok(_) => {
+                hasher.update(byte);
+                *target_size = target_size
+                    .checked_add(1)
+                    .ok_or(DeltaError::OutputLimitExceeded)?;
+                return Ok(Some(byte[0]));
+            }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => {
+                return Err(DeltaError::Io {
+                    kind: error.kind(),
+                    message: error.to_string(),
+                });
+            }
+        }
+    }
+}
+
+fn push_stream_literal<F>(
+    byte: u8,
+    literal_limit: usize,
+    literal: &mut Vec<u8>,
+    literal_bytes: &mut u64,
+    peak_literal_bytes: &mut usize,
+    emit: &mut F,
+) -> Result<(), DeltaError>
+where
+    F: FnMut(Instruction) -> Result<(), DeltaError>,
+{
+    literal.push(byte);
+    *literal_bytes = literal_bytes
+        .checked_add(1)
+        .ok_or(DeltaError::OutputLimitExceeded)?;
+    *peak_literal_bytes = (*peak_literal_bytes).max(literal.len());
+    if literal.len() == literal_limit {
+        flush_stream_literal(literal, emit)?;
+    }
+    Ok(())
+}
+
+fn flush_stream_literal<F>(literal: &mut Vec<u8>, emit: &mut F) -> Result<(), DeltaError>
+where
+    F: FnMut(Instruction) -> Result<(), DeltaError>,
+{
+    if !literal.is_empty() {
+        emit(Instruction::Literal(std::mem::take(literal)))?;
+    }
+    Ok(())
 }
 
 fn strong_digest(bytes: &[u8]) -> Vec<u8> {
