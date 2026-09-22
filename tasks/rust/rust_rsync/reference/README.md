@@ -35,6 +35,9 @@ Implemented and tested:
 - `--partial` and confined relative `--partial-dir` recovery with deterministic
   interruption, retained-prefix validation/reuse, non-retained cleanup, and
   destination-isolated retry commit;
+- `--delay-updates` parsing and confined per-run staging, with unchanged
+  destinations on staging interruption, rollback of already-installed files
+  on commit failure, and transaction cleanup after every exercised outcome;
 - pre-mutation exit-23 diagnostics for explicit metadata requests that the
   selected platform adapter cannot honor;
 - mutation-free `--dry-run`;
@@ -56,7 +59,7 @@ Not yet implemented:
 - complete option and filter semantics;
 - Unix ownership, ACL, xattr, and sparse adapters plus remaining metadata
   mapping;
-- delayed-update set commits and remaining recovery semantics;
+- remaining recovery semantics beyond partial and delayed-update commits;
 - protocol-31 framing and remote-shell roles;
 - daemon client/server, modules, and authentication;
 - every remaining row in `COMPATIBILITY_MATRIX.csv`.

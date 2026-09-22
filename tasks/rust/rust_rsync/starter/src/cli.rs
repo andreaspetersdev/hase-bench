@@ -47,6 +47,7 @@ pub struct Options {
     pub sparse: bool,
     pub partial: bool,
     pub partial_dir: Option<PathBuf>,
+    pub delay_updates: bool,
     pub filters: Vec<FilterDirective>,
     pub remote_shell: Option<OsString>,
 }
@@ -190,6 +191,8 @@ where
                     .expect("checked")
                     .to_owned(),
             ));
+        } else if options_enabled && argument == OsStr::new("--delay-updates") {
+            options.delay_updates = true;
         } else if options_enabled && argument == OsStr::new("--include") {
             options.filters.push(FilterDirective::Rule(FilterRule {
                 include: true,

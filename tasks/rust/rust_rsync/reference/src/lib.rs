@@ -18,6 +18,7 @@ use rust_rsync::fs::{CapabilityOutcome, CapabilityReport, CapabilityStatus, Meta
 use rust_rsync::{Endpoint, Invocation, Options, PathSpec};
 use same_file::Handle;
 
+pub mod delayed_update;
 pub mod delta;
 pub mod recovery;
 
