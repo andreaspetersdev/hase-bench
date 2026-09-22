@@ -25,6 +25,9 @@ Implemented and tested:
 - Windows named-stream enumeration with opaque byte copying in Rust;
 - Windows sparse output with measured allocation reduction through argument-array
   `fsutil` calls;
+- Unix uid/gid preservation, POSIX ACL copying, and opaque xattr copying through
+  an embedded Python 3 bridge with argument-free scripts and environment-passed
+  paths, plus seek-based sparse output;
 - rolling weak block signatures plus pinned SHA-256 0.10.9 strong signatures,
   literal/match planning, and length/digest-verified reconstruction;
 - localized-edit block reuse with literal-byte accounting, output bounds, and
@@ -54,11 +57,16 @@ claiming a skipped pass; where native links are available it compares `-l`,
 `-L`, and `--safe-links`. The first differential run corrected an author-test
 assumption about the absent-destination directory shape.
 
+The Unix metadata fixture runs on WSL's native temporary filesystem without
+installing auxiliary ACL/xattr tools. It verifies the exact embedded bridge
+and the installed rsync 3.2.7/protocol-31 oracle for representable uid/gid,
+permission bits, a POSIX access ACL, an opaque `user.*` xattr, sparse-file
+bytes, and reduced allocation. Each capability is recorded explicitly.
+
 Not yet implemented:
 
 - complete option and filter semantics;
-- Unix ownership, ACL, xattr, and sparse adapters plus remaining metadata
-  mapping;
+- remaining Unix metadata mapping, privilege failures, and special files;
 - remaining recovery semantics beyond partial and delayed-update commits;
 - protocol-31 framing and remote-shell roles;
 - daemon client/server, modules, and authentication;

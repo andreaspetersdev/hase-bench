@@ -22,6 +22,15 @@ missing binary, non-3.x release, protocol below 31, mode failure, or manifest
 mismatch is a hard failure. Host metadata capabilities are handled later by
 the matrix-specific fixtures and are never inferred from this smoke probe.
 
+`unix_metadata_fixture.py` is the matrix-specific Unix metadata oracle probe.
+It uses Python's native uid/gid and xattr APIs, so it does not require
+`getfacl`, `setfacl`, `getfattr`, or `setfattr`. It creates permission, owner,
+group, opaque-xattr, POSIX-ACL, and sparse-file cases on a native temporary
+filesystem, runs the already-installed rsync 3.x with only the capabilities
+the host advertised, and compares the resulting bytes and metadata. Every
+capability is emitted as structured `supported` or `unavailable` evidence;
+an unavailable optional feature is never reported as a passing test.
+
 `differential_fixture.py` accepts separate `--candidate` and `--oracle`
 executables. It checks local archive/delete/dry-run behavior, both client and
 server roles for remote-shell push/pull, and both client and server roles for
@@ -40,8 +49,8 @@ than hidden or treated as a passing skip.
 The author-reference Windows metadata test consumes those outcomes: it checks
 canonical ACL entry equivalence, opaque named-stream bytes, exact base-file
 bytes, the sparse-file attribute, and allocated ranges smaller than logical
-size. These are reference-level checks until equivalent Unix adapters and
-independent candidate fixtures exist.
+size. Together with the Unix bridge/oracle fixture, these remain
+reference-level checks until independent candidate fixtures exist.
 
 `windows_wsl_local_diff.py` runs a native Windows candidate and WSL rsync over
 separate trees in one Windows temporary directory. It independently compares

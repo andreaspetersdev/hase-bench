@@ -5,11 +5,8 @@ use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::fmt;
 use std::fs::{self, FileTimes};
-#[cfg(windows)]
-use std::io::Read;
-use std::io::{self, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-#[cfg(windows)]
 use std::process::Command;
 use std::time::{Duration, UNIX_EPOCH};
 
@@ -17,6 +14,9 @@ use rust_rsync::config::{FilterDirective, FilterFileKind, FilterRule};
 use rust_rsync::fs::{CapabilityOutcome, CapabilityReport, CapabilityStatus, MetadataFeature};
 use rust_rsync::{Endpoint, Invocation, Options, PathSpec};
 use same_file::Handle;
+
+#[cfg(not(windows))]
+const UNIX_METADATA_BRIDGE: &str = include_str!("../unix_metadata_bridge.py");
 
 pub mod delayed_update;
 pub mod delta;
@@ -154,10 +154,7 @@ pub fn metadata_capabilities() -> CapabilityReport {
             reason: "no implicit Windows SID to Unix uid/gid mapping".to_owned(),
         }
     } else {
-        CapabilityStatus::AdapterUnavailable {
-            reason: "owner/group preservation is not implemented in the Phase 0 reference"
-                .to_owned(),
-        }
+        CapabilityStatus::ProbeRequired
     };
     CapabilityReport {
         outcomes: vec![
@@ -167,22 +164,19 @@ pub fn metadata_capabilities() -> CapabilityReport {
                 feature: MetadataFeature::Ownership,
                 status: ownership,
             },
-            windows_adapter(
-                MetadataFeature::Acls,
-                "Unix ACL preservation is not implemented in the Phase 0 reference",
-            ),
-            windows_adapter(
+            platform_adapter(MetadataFeature::Acls, CapabilityStatus::ProbeRequired),
+            platform_adapter(
                 MetadataFeature::ExtendedAttributes,
-                "Unix xattr preservation is not implemented in the Phase 0 reference",
+                CapabilityStatus::ProbeRequired,
             ),
             CapabilityOutcome {
                 feature: MetadataFeature::Symlinks,
                 status: CapabilityStatus::ProbeRequired,
             },
             supported(MetadataFeature::HardLinks),
-            windows_adapter(
+            platform_adapter(
                 MetadataFeature::SparseFiles,
-                "Unix sparse allocation is not implemented in the Phase 0 reference",
+                CapabilityStatus::ProbeRequired,
             ),
         ],
     }
@@ -195,20 +189,14 @@ fn supported(feature: MetadataFeature) -> CapabilityOutcome {
     }
 }
 
-fn adapter_unavailable(feature: MetadataFeature, reason: &str) -> CapabilityOutcome {
-    CapabilityOutcome {
-        feature,
-        status: CapabilityStatus::AdapterUnavailable {
-            reason: reason.to_owned(),
-        },
-    }
-}
-
-fn windows_adapter(feature: MetadataFeature, non_windows_reason: &str) -> CapabilityOutcome {
+fn platform_adapter(feature: MetadataFeature, unix_status: CapabilityStatus) -> CapabilityOutcome {
     if cfg!(windows) {
         supported(feature)
     } else {
-        adapter_unavailable(feature, non_windows_reason)
+        CapabilityOutcome {
+            feature,
+            status: unix_status,
+        }
     }
 }
 
@@ -358,6 +346,17 @@ fn sync_directory(
             }
         }
     }
+    if options.preserve_owner || options.preserve_group {
+        copy_ownership(
+            source,
+            destination,
+            options.preserve_owner,
+            options.preserve_group,
+        )?;
+    }
+    if options.preserve_xattrs {
+        copy_extended_attributes(source, destination)?;
+    }
     if options.preserve_permissions {
         let metadata = fs::metadata(source).map_err(|error| io_error(source, error))?;
         fs::set_permissions(destination, metadata.permissions())
@@ -468,7 +467,7 @@ fn copy_referent(
         if fs::symlink_metadata(destination).is_ok() {
             remove_entry(destination)?;
         }
-        copy_file_data(source, destination)?;
+        copy_regular_file_data(source, destination, options.sparse)?;
         if let Some(identity) = identity {
             context
                 .hard_links
@@ -496,6 +495,14 @@ fn copy_referent(
                 .map_err(|error| io_error(destination, error))?
                 .set_times(times)
                 .map_err(|error| io_error(destination, error))?;
+        }
+        if options.preserve_owner || options.preserve_group {
+            copy_ownership(
+                source,
+                destination,
+                options.preserve_owner,
+                options.preserve_group,
+            )?;
         }
         if options.preserve_permissions {
             fs::set_permissions(destination, metadata.permissions())
@@ -525,6 +532,80 @@ fn copy_file_data(source: &Path, destination: &Path) -> Result<(), ReferenceErro
     output.flush().map_err(|error| io_error(destination, error))
 }
 
+fn copy_regular_file_data(
+    source: &Path,
+    destination: &Path,
+    sparse: bool,
+) -> Result<(), ReferenceError> {
+    if !sparse {
+        return copy_file_data(source, destination);
+    }
+    let mut input = fs::File::open(source).map_err(|error| io_error(source, error))?;
+    let mut output = fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(destination)
+        .map_err(|error| io_error(destination, error))?;
+    let mut buffer = [0_u8; 64 * 1024];
+    let mut length = 0_u64;
+    loop {
+        let count = input
+            .read(&mut buffer)
+            .map_err(|error| io_error(source, error))?;
+        if count == 0 {
+            break;
+        }
+        if buffer[..count].iter().all(|byte| *byte == 0) {
+            output
+                .seek(SeekFrom::Current(count as i64))
+                .map_err(|error| io_error(destination, error))?;
+        } else {
+            output
+                .write_all(&buffer[..count])
+                .map_err(|error| io_error(destination, error))?;
+        }
+        length += count as u64;
+    }
+    output
+        .set_len(length)
+        .and_then(|()| output.flush())
+        .map_err(|error| io_error(destination, error))
+}
+
+#[cfg(windows)]
+fn copy_ownership(
+    _source: &Path,
+    destination: &Path,
+    _owner: bool,
+    _group: bool,
+) -> Result<(), ReferenceError> {
+    Err(unavailable_adapter(
+        "ownership preservation",
+        destination,
+        "Windows SID to Unix uid/gid mapping is unavailable",
+    ))
+}
+
+#[cfg(not(windows))]
+fn copy_ownership(
+    source: &Path,
+    destination: &Path,
+    owner: bool,
+    group: bool,
+) -> Result<(), ReferenceError> {
+    run_python_metadata(
+        "ownership preservation",
+        "ownership",
+        source,
+        destination,
+        &[
+            ("HASEBENCH_META_OWNER", if owner { "1" } else { "0" }),
+            ("HASEBENCH_META_GROUP", if group { "1" } else { "0" }),
+        ],
+    )
+}
+
 #[cfg(windows)]
 fn copy_acl(source: &Path, destination: &Path) -> Result<(), ReferenceError> {
     const SCRIPT: &str = "$ErrorActionPreference='Stop'; $acl=Get-Acl -LiteralPath $env:HASEBENCH_ACL_SOURCE; Set-Acl -LiteralPath $env:HASEBENCH_ACL_DESTINATION -AclObject $acl";
@@ -544,12 +625,8 @@ fn copy_acl(source: &Path, destination: &Path) -> Result<(), ReferenceError> {
 }
 
 #[cfg(not(windows))]
-fn copy_acl(_source: &Path, destination: &Path) -> Result<(), ReferenceError> {
-    Err(unavailable_adapter(
-        "ACL preservation",
-        destination,
-        "Unix ACL adapter is unavailable",
-    ))
+fn copy_acl(source: &Path, destination: &Path) -> Result<(), ReferenceError> {
+    run_python_metadata("ACL preservation", "acl", source, destination, &[])
 }
 
 #[cfg(windows)]
@@ -591,12 +668,14 @@ fn named_stream_path(path: &Path, stream: &str) -> PathBuf {
 }
 
 #[cfg(not(windows))]
-fn copy_extended_attributes(_source: &Path, destination: &Path) -> Result<(), ReferenceError> {
-    Err(unavailable_adapter(
+fn copy_extended_attributes(source: &Path, destination: &Path) -> Result<(), ReferenceError> {
+    run_python_metadata(
         "extended-attribute preservation",
+        "xattrs",
+        source,
         destination,
-        "Unix xattr adapter is unavailable",
-    ))
+        &[],
+    )
 }
 
 #[cfg(windows)]
@@ -650,15 +729,10 @@ fn run_fsutil(path: &Path, operation: &str, arguments: &[&str]) -> Result<(), Re
 }
 
 #[cfg(not(windows))]
-fn preserve_sparse_allocation(path: &Path) -> Result<(), ReferenceError> {
-    Err(unavailable_adapter(
-        "sparse-file preservation",
-        path,
-        "Unix sparse adapter is unavailable",
-    ))
+fn preserve_sparse_allocation(_path: &Path) -> Result<(), ReferenceError> {
+    Ok(())
 }
 
-#[cfg(windows)]
 fn require_command_success(
     feature: &'static str,
     path: &Path,
@@ -675,6 +749,29 @@ fn require_command_success(
         stdout.trim().to_owned()
     };
     Err(unavailable_adapter(feature, path, &diagnostic))
+}
+
+#[cfg(not(windows))]
+fn run_python_metadata(
+    feature: &'static str,
+    operation: &str,
+    source: &Path,
+    destination: &Path,
+    environment: &[(&str, &str)],
+) -> Result<(), ReferenceError> {
+    let mut command = Command::new("python3");
+    command
+        .args(["-I", "-c", UNIX_METADATA_BRIDGE])
+        .env("HASEBENCH_META_SOURCE", source)
+        .env("HASEBENCH_META_DESTINATION", destination)
+        .env("HASEBENCH_META_OPERATION", operation);
+    for (name, value) in environment {
+        command.env(name, value);
+    }
+    let output = command
+        .output()
+        .map_err(|error| capability_io_error(feature, destination, error))?;
+    require_command_success(feature, destination, output)
 }
 
 fn capability_io_error(feature: &'static str, path: &Path, error: io::Error) -> ReferenceError {

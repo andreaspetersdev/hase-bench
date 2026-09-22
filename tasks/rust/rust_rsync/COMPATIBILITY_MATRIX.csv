@@ -18,7 +18,7 @@ DELETE-002,3,all,delete-before during and after preserve timing semantics,--dele
 DELETE-003,3,all,max-delete stops excess deletion with compatible status,--max-delete,planner,visible_max_delete,diff_max_delete,required,planned
 META-001,3,all,preserve modification times at host resolution,-t,fs,visible_times,diff_times,capability-dependent,verified
 META-002,3,all,preserve representable permissions,-p,fs,visible_permissions,diff_permissions,capability-dependent,reference
-META-003,3,all,preserve owner and group when authorized,-o|-g,fs,visible_owner_group,diff_owner_group,capability-dependent,planned
+META-003,3,all,preserve owner and group when authorized,-o|-g,fs,visible_owner_group,diff_owner_group,capability-dependent,reference
 META-004,3,all,preserve symbolic links and selected referent behavior,-l|-L,fs|planner,visible_symlinks,hidden_symlink_escape,capability-dependent,reference
 META-005,3,all,preserve hard-link identity groups,-H,fs|planner,visible_hardlinks,diff_hardlinks,capability-dependent,verified
 META-006,3,all,preserve ACL entries when advertised,-A,fs,visible_acl,diff_acl,capability-dependent,reference
