@@ -31,6 +31,13 @@ the host advertised, and compares the resulting bytes and metadata. Every
 capability is emitted as structured `supported` or `unavailable` evidence;
 an unavailable optional feature is never reported as a passing test.
 
+`wire_oracle_fixture.py` launches the installed rsync through a temporary
+remote-shell shim in both push and pull roles. A deliberately truncated peer
+captures the client's initial four-byte version word and returns protocol 31;
+the fixture requires both captured greetings to be little-endian
+`1f000000`. The expected nonzero transfer exit is not counted as a transfer
+test—the fixture proves only the independently observable greeting boundary.
+
 `differential_fixture.py` accepts separate `--candidate` and `--oracle`
 executables. It checks local archive/delete/dry-run behavior, both client and
 server roles for remote-shell push/pull, and both client and server roles for

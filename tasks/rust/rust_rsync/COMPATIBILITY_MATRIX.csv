@@ -41,8 +41,8 @@ DAEMON-002,6,daemon,writable module accepts confined push,rsync://HOST/MODULE,tr
 DAEMON-003,6,daemon,auth users and secrets reject invalid credentials,--password-file,transport::daemon|config,visible_daemon_auth,hidden_daemon_auth,required,planned
 DAEMON-004,6,daemon,module path and filters prevent escape,rsyncd.conf,transport::daemon|config|fs,visible_daemon_modules,hidden_daemon_escape,required,planned
 DAEMON-005,6,daemon,connection and I/O timeout terminate cleanly,--timeout|--contimeout,transport::daemon|session,visible_daemon_timeout,hidden_daemon_timeout,required,planned
-WIRE-001,5,network,protocol negotiates 31 or newer without requiring newer-only features,--protocol,wire,visible_protocol_31,diff_protocol_31,required,planned
-WIRE-002,5,network,malformed lengths and multiplex tags fail without unbounded allocation,default,wire,visible_wire_errors,hidden_wire_fuzz,required,planned
+WIRE-001,5,network,protocol negotiates 31 or newer without requiring newer-only features,--protocol,wire,visible_protocol_31,diff_protocol_31,required,reference
+WIRE-002,5,network,malformed lengths and multiplex tags fail without unbounded allocation,default,wire,visible_wire_errors,hidden_wire_fuzz,required,reference
 WIRE-003,5,network,checksum and compression choices negotiate from peer intersection,--checksum-choice|--compress-choice,wire|delta,visible_algorithm_negotiation,diff_algorithm_negotiation,capability-dependent,planned
 EXIT-001,7,all,success and syntax or usage errors use compatible exits,default,cli|session,visible_exit_basic,diff_exit_0_1_2,required,planned
 EXIT-002,7,all,file I/O and partial transfer failures retain compatible categories,default,session|fs,visible_exit_io,diff_exit_11_23_24,required,planned

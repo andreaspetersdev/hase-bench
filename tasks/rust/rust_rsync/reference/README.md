@@ -41,6 +41,9 @@ Implemented and tested:
 - `--delay-updates` parsing and confined per-run staging, with unchanged
   destinations on staging interruption, rollback of already-installed files
   on commit failure, and transaction cleanup after every exercised outcome;
+- protocol-31 little-endian version exchange and negotiation with newer peers,
+  plus upstream-compatible multiplex headers, declared message tags, strict
+  pre-allocation payload limits, and clean malformed/truncated-frame errors;
 - pre-mutation exit-23 diagnostics for explicit metadata requests that the
   selected platform adapter cannot honor;
 - mutation-free `--dry-run`;
@@ -68,7 +71,7 @@ Not yet implemented:
 - complete option and filter semantics;
 - remaining Unix metadata mapping, privilege failures, and special files;
 - remaining recovery semantics beyond partial and delayed-update commits;
-- protocol-31 framing and remote-shell roles;
+- remote-shell process and sender/receiver roles beyond the framing layer;
 - daemon client/server, modules, and authentication;
 - every remaining row in `COMPATIBILITY_MATRIX.csv`.
 
@@ -79,3 +82,10 @@ The streaming planner's working-memory bound excludes the caller-owned basis
 signature table and whatever storage its instruction sink chooses. Its own
 target-dependent buffers never exceed one block plus the configured literal
 pipeline limit.
+
+The wire constants and four-byte multiplex layout follow upstream
+[`rsync.h`](https://github.com/RsyncProject/rsync/blob/v3.2.7/rsync.h) and
+[`io.c`](https://github.com/RsyncProject/rsync/blob/v3.2.7/io.c): the low 24
+bits carry payload length and the high byte carries `MPLEX_BASE + msgcode`.
+The WSL oracle fixture independently captured `1f000000` as the installed
+rsync 3.2.7 client's initial remote-shell greeting in both push and pull roles.
