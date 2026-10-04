@@ -75,7 +75,7 @@ class FrameworkTests(unittest.TestCase):
             [task.identifier for task in discover_tasks() if task.language == "rust"],
             [
                 "rust_001", "rust_002", "rust_003", "rust_004", "rust_005", "rust_006", "rust_007",
-                "rust_008",
+                "rust_008", "rust_grep",
             ],
         )
         self.assertEqual(find_task("rust_001").standard, "Rust 2024")
@@ -235,6 +235,27 @@ class FrameworkTests(unittest.TestCase):
         self.assertTrue(hidden_arguments[8].startswith("patch.crates-io.rust_001.path="))
         self.assertEqual(run.call_args_list[3].args[0], [*hidden_arguments, "--no-run"])
 
+    def test_rust_executable_uses_external_black_box_validator(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            validator = root / "validator" / "validate.py"
+            validator.parent.mkdir()
+            validator.touch()
+            task = Task("rust_grep", "Grep", "rust", "Rust 2024", "very hard", 1, root)
+            workspace = root / "workspace"
+            success = CommandResult(0, "", 0.0)
+            failure = CommandResult(1, "hidden failure", 0.0)
+            with patch("hasebench.validation._cargo_executable", return_value="cargo"), \
+                 patch("hasebench.validation._run", side_effect=[success, success, success, failure]) as run:
+                result = validate_rust(workspace, task)
+            self.assertEqual(result.outcome, "HIDDEN_TEST_FAILURE")
+            self.assertEqual(run.call_count, 4)
+            self.assertEqual(run.call_args_list[3].args[0][1:], [
+                str(validator),
+                str(workspace / "build" / "hasebench" / "debug" /
+                    ("rust_grep.exe" if __import__("os").name == "nt" else "rust_grep")),
+            ])
+
     def test_cargo_resolution_falls_back_to_the_standard_user_installation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             cargo_home = Path(temporary)
@@ -278,7 +299,7 @@ class FrameworkTests(unittest.TestCase):
                 result = OpenCodeAgentRunner("opencode-test").run(request)
             self.assertEqual(result.outcome, "SUCCESS")
             self.assertEqual(popen.call_args.args[0], [
-                "opencode-test", "run", "--dir", str(workspace), "--model", "hase/qwen", "--variant", "xhigh",
+                "opencode-test", "run", "--model", "hase/qwen#xhigh",
                 "--format", "json", "--auto", "solve it",
             ])
             self.assertEqual(popen.call_args.kwargs["env"]["TEMP"], str(workspace / ".hasebench-tmp"))
@@ -370,7 +391,7 @@ class FrameworkTests(unittest.TestCase):
             "output_token_max": None,
         })()
         row = object()
-        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row)] + [(0, row)] * 27) as run_one, \
+        with patch("hasebench.cli._run_one", side_effect=[(0, row), (1, row)] + [(0, row)] * 28) as run_one, \
              patch("hasebench.cli.write_markdown_summary"), redirect_stdout(StringIO()) as output:
             self.assertEqual(_run_all(None, arguments), 1)
         self.assertIn("Summary:", output.getvalue())
@@ -379,7 +400,7 @@ class FrameworkTests(unittest.TestCase):
             [f"cpp_{index:03}" for index in range(1, 22)]
             + [
                 "rust_001", "rust_002", "rust_003", "rust_004", "rust_005", "rust_006", "rust_007",
-                "rust_008",
+                "rust_008", "rust_grep",
             ],
         )
 

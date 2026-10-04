@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -146,6 +147,12 @@ def validate_rust(workspace: Path, task: Task) -> ValidationResult:
     if visible_compile.returncode != 0:
         return ValidationResult(task.identifier, visible_compile, None, None, "COMPILATION_FAILURE")
     visible = _run(visible_arguments, workspace, 60)
+
+    executable_validator = task.root / "validator" / "validate.py"
+    if executable_validator.is_file():
+        executable = build_dir / "debug" / (f"{task.identifier}.exe" if os.name == "nt" else task.identifier)
+        hidden = _run([sys.executable, str(executable_validator), str(executable)], workspace, 120)
+        return ValidationResult(task.identifier, build, visible, hidden)
 
     validator_manifest = task.root / "validator" / "Cargo.toml"
     hidden_build_dir = workspace / "build" / "hasebench-hidden"

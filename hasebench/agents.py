@@ -73,13 +73,9 @@ class OpenCodeAgentRunner:
         arguments = [
             self.executable,
             "run",
-            "--dir",
-            str(request.workspace),
             "--model",
-            request.model,
+            f"{request.model}#{request.variant}" if request.variant else request.model,
         ]
-        if request.variant:
-            arguments.extend(["--variant", request.variant])
         arguments.extend([
             "--format",
             "json",
