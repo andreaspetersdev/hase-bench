@@ -54,7 +54,11 @@ def prepare_workspace(
     while workspace.exists():
         workspace = base / f"{stem}_{suffix}"
         suffix += 1
-    shutil.copytree(task.root / "starter", workspace)
+    # Cargo's local build cache is not part of the canonical starter. It may
+    # exist on an author's machine even though Git ignores it, and must never
+    # enter a benchmark workspace.
+    ignore = shutil.ignore_patterns("target") if task.language == "rust" else None
+    shutil.copytree(task.root / "starter", workspace, ignore=ignore)
     shutil.copy2(task.root / "TASK.md", workspace / "TASK.md")
     if task.language == "cpp":
         # OpenCode may run a failing Debug test itself.  Make that process

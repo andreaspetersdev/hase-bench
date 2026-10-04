@@ -122,6 +122,19 @@ class FrameworkTests(unittest.TestCase):
             self.assertFalse((workspace / "validator").exists())
             self.assertEqual(task_for_workspace(workspace), "rust_001")
 
+    def test_rust_workspace_omits_local_cargo_build_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            starter = root / "task" / "starter"
+            (starter / "target" / "debug").mkdir(parents=True)
+            (starter / "target" / "debug" / "local-build.exe").write_bytes(b"local")
+            (starter / "Cargo.toml").write_text("[package]\nname = 'example'\nversion = '0.1.0'\n", encoding="utf-8")
+            (root / "task" / "TASK.md").write_text("Solve it.\n", encoding="utf-8")
+            task = Task("rust_example", "Example", "rust", "Rust 2024", "easy", 1, root / "task")
+            workspace = prepare_workspace(task, root / "work")
+            self.assertTrue((workspace / "Cargo.toml").is_file())
+            self.assertFalse((workspace / "target").exists())
+
     def test_preparations_are_never_reused(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
