@@ -1236,34 +1236,29 @@ For Very-high tasks, write the state/concurrency model before the starter and
 use deterministic orchestration to prove progress, cleanup, and recovery. A
 larger random stress loop alone does not justify Very-high severity.
 
-Reserve `rust_rsync` as a single Very-high, long-horizon cross-platform rsync-clone
-task. The agent must build a complete functional Rust implementation, runnable
-on both Windows and Linux, rather than a local-only file copier. At task
-authoring time, define an rsync 3.x compatibility band, minimum protocol, and
-applicable `rsync(1)` and `rsyncd.conf(5)` behavior. Record the exact upstream
-implementation used by each validation run without making one package build a
-task requirement. The contract must cover local, remote-shell, and daemon
-modes; interoperability with a compatible upstream implementation; the
-delta-transfer protocol; option parsing and
-filter rules; traversal, deletion, partial/resumed transfers, checksums,
-preservation of supported metadata, diagnostics, and exit codes. Specify
-Windows drive/UNC paths, case behavior, reparse points, and filesystem
-capability differences alongside Linux permissions, links, and metadata.
-Unavailable OS features may have explicit capability-based behavior, but the
-task must not quietly omit an entire transfer mode or supported feature.
+Reserve two additional, separate Very-high long-horizon Rust projects after
+the compact Rust pipeline: `rust_grep` and `rust_nano`. Both must run natively
+on Windows and Linux and receive larger, task-specific agent/build/test time
+budgets. These are planned tasks, independent planned tasks.
 
-This remains one benchmark project. Its starter should provide a modular CLI,
-transport, protocol, filesystem, and transfer skeleton with visible integration
-tests. The independent validator should test both operating systems and use
-a compatible upstream rsync 3.x installation as a differential peer for local, remote-shell, and
-daemon scenarios, including interrupted transfers and adversarial paths. Give
-the task a substantially larger agent/build/test time budget than the compact
-Rust tasks. Do not claim completion from Linux-only validation or from a
-partial feature subset.
-Establish the Rust validator and workflow with smaller tasks before building
-this capstone; its reserved ID does not imply it must be implemented first.
-Follow the design, implementation, review, test, and progress checkpoints in
-`RUST_RSYNC_PLAN.md` when authoring and running this task.
+`rust_grep` is a complete grep-like CLI rather than an isolated matcher. Pin
+the supported pattern syntax and option/exit/output semantics against a
+recorded GNU-grep baseline. Cover stdin, files, recursive traversal,
+fixed/regex and multiple patterns, context and match formatting,
+include/exclude selection, binary and encoding behavior, bounded streaming,
+errors, Windows drive/UNC paths, and Linux path/link cases. Use independent
+Windows/Linux fixtures and GNU grep as a differential oracle for the common
+subset. Follow `RUST_GREP_PLAN.md` before creating its starter or validator.
+
+`rust_nano` is a complete nano-like terminal editor rather than a document
+model alone. Pin the supported key commands and terminal behavior against a
+recorded GNU-nano baseline where portable. Cover Unicode-aware editing,
+navigation, selection, cut/paste, search/replace, undo/redo, multiple buffers,
+save/write-out and failure recovery, prompts, viewport/resize behavior, and
+terminal restoration. Validate both the semantic model and real sessions
+through Unix PTY and Windows ConPTY/console fixtures. Follow
+`RUST_NANO_PLAN.md` before creating its starter or validator. Exact support
+matrices and platform capability outcomes must be reviewed before version 1.
 
 The same:
 
